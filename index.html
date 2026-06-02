@@ -38,6 +38,9 @@ textarea{height:56px;resize:none}
 .submit-btn:hover{background:#0c447c}
 .submit-btn:disabled{background:#93b8d4;cursor:not-allowed}
 .chart-wrap{position:relative;height:200px;margin-top:4px}
+.chart-tabs{display:flex;gap:6px;margin-bottom:10px}
+.chart-tab{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid #d1d5db;background:#f9fafb;color:#666;cursor:pointer}
+.chart-tab.active{background:#185fa5;color:#fff;border-color:#185fa5}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .cal-nav span{font-size:13px;font-weight:500;color:#1a1a1a}
 .cal-nav button{background:none;border:0.5px solid #d1d5db;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:13px;color:#555}
@@ -126,7 +129,11 @@ textarea{height:56px;resize:none}
   </div>
 
   <div class="section">
-    <div class="section-title"><i class="ti ti-chart-line"></i>距离趋势</div>
+    <div class="section-title"><i class="ti ti-chart-line"></i>趋势图</div>
+    <div class="chart-tabs">
+      <button class="chart-tab active" id="tabDist" onclick="switchChart('dist')"距离</button>
+      <button class="chart-tab" id="tabPace" onclick="switchChart('pace')"配速</button>
+    </div>
     <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
   </div>
 
@@ -159,6 +166,7 @@ const BASE = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
 
 let records = [];
 let chart = null;
+let chartMode = 'dist';
 const now = new Date();
 let calYear = now.getFullYear(), calMonth = now.getMonth();
 
@@ -336,18 +344,40 @@ function renderCalendar(){
   }
 }
 
+function switchChart(mode){
+  chartMode=mode;
+  document.getElementById('tabDist').className='chart-tab'+(mode==='dist'?' active':'');
+  document.getElementById('tabPace').className='chart-tab'+(mode==='pace'?' active':'');
+  renderChart();
+}
+
 function renderChart(){
   const wrap=document.getElementById('trendChart')?.parentNode;
   if(!wrap)return;
   if(!records.length){wrap.innerHTML='<div class="empty-state"><i class="ti ti-swim" style="font-size:24px;display:block;margin:0 auto 8px"></i>记录第一次游泳后，这里会显示趋势图</div>';return;}
   if(!document.getElementById('trendChart')){wrap.innerHTML='<div class="chart-wrap"><canvas id="trendChart"></canvas></div>';}
-  const sorted=[...records].sort((a,b)=>a.date.localeCompare(b.date));
+  const sorted=[...records].filter(r=>chartMode==='pace'?Number(r.dist)&&Number(r.time):true).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!sorted.length){
+    if(chart){chart.destroy();chart=null;}
+    wrap.innerHTML='<div class="empty-state" style="height:200px;display:flex;align-items:center;justify-content:center;flex-direction:column"><i class="ti ti-gauge" style="font-size:24px;display:block;margin:0 auto 8px"></i>需要同时填写距离和时长才能计算配速</div>';
+    return;
+  }
+  if(!document.getElementById('trendChart')){wrap.innerHTML='<div class="chart-wrap"><canvas id="trendChart"></canvas></div>';}
   if(chart)chart.destroy();
-  chart=new Chart(document.getElementById('trendChart'),{
-    type:'line',
-    data:{labels:sorted.map(r=>r.date.slice(5)),datasets:[{label:'距离(m)',data:sorted.map(r=>Number(r.dist)),fill:true,backgroundColor:'rgba(24,95,165,0.10)',borderColor:'#185fa5',pointBackgroundColor:'#185fa5',pointRadius:4,tension:0.35,borderWidth:2}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}},y:{ticks:{font:{size:10}},beginAtZero:false}}}
-  });
+  if(chartMode==='dist'){
+    chart=new Chart(document.getElementById('trendChart'),{
+      type:'line',
+      data:{labels:sorted.map(r=>r.date.slice(5)),datasets:[{label:'距离(m)',data:sorted.map(r=>Number(r.dist)),fill:true,backgroundColor:'rgba(24,95,165,0.10)',borderColor:'#185fa5',pointBackgroundColor:'#185fa5',pointRadius:4,tension:0.35,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}},y:{ticks:{font:{size:10}},beginAtZero:false}}}
+    });
+  } else {
+    const paceData=sorted.map(r=>Math.round(Number(r.time)*60*100/Number(r.dist)));
+    chart=new Chart(document.getElementById('trendChart'),{
+      type:'line',
+      data:{labels:sorted.map(r=>r.date.slice(5)),datasets:[{label:'配速',data:paceData,fill:true,backgroundColor:'rgba(33,150,184,0.10)',borderColor:'#2196b8',pointBackgroundColor:'#2196b8',pointRadius:4,tension:0.35,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const s=ctx.parsed.y;return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;{}}}}},scales:{x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}},y:{reverse:true,ticks:{font:{size:10},callback:v=>{const s=Math.round(v);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}}}}}
+    });
+  }
 }
 
 function renderBadges(){
