@@ -50,6 +50,7 @@ textarea{height:56px;resize:none}
 .record-main{flex:1;min-width:0}
 .record-date{font-size:11px;color:#888}
 .record-stats{font-size:13px;color:#1a1a1a;font-weight:500}
+.record-pace{font-size:11px;color:#185fa5;margin-top:1px}
 .record-note{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .record-del{color:#ccc;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px}
 .record-del:hover{color:#e24b4a}
@@ -120,7 +121,7 @@ textarea{height:56px;resize:none}
 
   <div class="section">
     <div class="section-title"><i class="ti ti-chart-line"></i>距离趋势</div>
-    <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    <div class="chart-wrap" style="height:200px"><canvas id="trendChart"></canvas></div>
   </div>
 
   <div class="section">
@@ -269,6 +270,7 @@ function renderList(){
         <div class="record-date">${r.date} · ${r.style}</div>
         <div class="record-stats">${r.dist?r.dist+'m · ':''}${r.time?r.time+'min · ':''}${r.cal?r.cal+'kcal':''}${r.isNew&&(r.isNew.dist||r.isNew.time||r.isNew.cal)?'<span class="new-best">新记录</span>':''}</div>
         ${r.note?`<div class="record-note">${r.note}</div>`:''}
+        ${r.dist&&r.time?`<div class="record-pace"><i class="ti ti-gauge" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>配速 ${Math.floor(r.time*1000/r.dist/60).toString().padStart(2,'0')}:${String(Math.round(r.time*1000/r.dist%60)).padStart(2,'0')} /百米</div>`:''}
       </div>
       <button class="record-del" onclick="deleteRecord(${r.id})"><i class="ti ti-trash"></i></button>
     </div>`).join('');
