@@ -185,29 +185,51 @@ const headers = {
   'X-Bin-Meta': 'false'
 };
 
+function loadLocal(){
+  try{const d=localStorage.getItem('swimlog_records');return d?JSON.parse(d):null;}catch(e){return null;}
+}
+
+function saveLocal(){
+  try{localStorage.setItem('swimlog_records',JSON.stringify(records));}catch(e){}
+}
+
 async function loadRecords(){
+  const local=loadLocal();
+  if(local&&local.length){
+    records=local.map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}));
+    records.sort((a,b)=>b.date.localeCompare(a.date));
+    render();
+  }
   try{
     setSync('正在同步...','syncing');
     const res = await fetch(BASE+'/latest', {headers});
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}
     const data = await res.json();
-    records = (Array.isArray(data) ? data : []).map(r=>({
-      ...r, dist:Number(r.dist)||0, time:Number(r.time)||0, cal:Number(r.cal)||0
-    }));
+    const cloud=(Array.isArray(data)?data:[]).map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}));
+    cloud.sort((a,b)=>b.date.localeCompare(a.date));
+    // merge: keep records with newer local additions
+    const cloudIds=new Set(cloud.map(r=>String(r.id)));
+    const localOnly=(records||[]).filter(r=>!cloudIds.has(String(r.id)));
+    records=[...localOnly,...cloud];
     records.sort((a,b)=>b.date.localeCompare(a.date));
+    if(localOnly.length)await saveToCloud();
+    saveLocal();
     setSync('已同步 · '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}));
     render();
   }catch(e){
-    setSync('同步失败','error');
-    render();
+    console.error('sync error:',e);
+    setSync('云端同步失败（本地数据已保留）','error');
+    if(!local||!local.length)render();
   }
 }
 
 async function saveToCloud(){
-  await fetch(BASE, {
+  const res=await fetch(BASE, {
     method:'PUT',
     headers,
     body: JSON.stringify(records)
   });
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}
 }
 
 async function addRecord(){
@@ -234,11 +256,13 @@ async function addRecord(){
   records.unshift(record);
   records.sort((a,b)=>b.date.localeCompare(a.date));
 
+  saveLocal();
   try{
     await saveToCloud();
     setSync('已同步 · '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}));
   }catch(e){
-    setSync('保存失败，请重试','error');
+    console.error('save error:',e);
+    setSync('云端保存失败（本地已保存）','error');
   }
 
   btn.disabled=false;
@@ -251,11 +275,12 @@ async function addRecord(){
 async function deleteRecord(id){
   if(!confirm('确认删除这条记录？'))return;
   records=records.filter(r=>String(r.id)!==String(id));
+  saveLocal();
   render();
   try{
     await saveToCloud();
     setSync('已同步 · '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}));
-  }catch(e){setSync('删除同步失败','error');}
+  }catch(e){console.error('delete sync error:',e);setSync('云端同步失败（本地已保存）','error');}
 }
 
 function calcStreak(recs){
