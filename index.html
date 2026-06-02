@@ -131,8 +131,8 @@ textarea{height:56px;resize:none}
   <div class="section">
     <div class="section-title"><i class="ti ti-chart-line"></i>趋势图</div>
     <div class="chart-tabs">
-      <button class="chart-tab active" id="tabDist" onclick="switchChart('dist')"距离</button>
-      <button class="chart-tab" id="tabPace" onclick="switchChart('pace')"配速</button>
+      <button class="chart-tab active" id="tabDist" onclick="switchChart('dist')">&#8203;距离</button>
+      <button class="chart-tab" id="tabPace" onclick="switchChart('pace')">&#8203;配速</button>
     </div>
     <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
   </div>
@@ -375,7 +375,7 @@ function renderChart(){
     chart=new Chart(document.getElementById('trendChart'),{
       type:'line',
       data:{labels:sorted.map(r=>r.date.slice(5)),datasets:[{label:'配速',data:paceData,fill:true,backgroundColor:'rgba(33,150,184,0.10)',borderColor:'#2196b8',pointBackgroundColor:'#2196b8',pointRadius:4,tension:0.35,borderWidth:2}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const s=ctx.parsed.y;return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;{}}}}},scales:{x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}},y:{reverse:true,ticks:{font:{size:10},callback:v=>{const s=Math.round(v);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}}}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const s=ctx.parsed.y;return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;}}}},scales:{x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}},y:{ticks:{font:{size:10},callback:v=>{const s=Math.round(v);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}}}}}
     });
   }
 }
