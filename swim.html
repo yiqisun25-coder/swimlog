@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游泳日记</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f6fb;min-height:100vh;padding:1rem}
+.app{max-width:680px;margin:0 auto}
+.header{background:linear-gradient(135deg,#0c3d5c 0%,#185fa5 60%,#2196b8 100%);border-radius:14px;padding:1.5rem 1.25rem 1rem;margin-bottom:1rem;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;bottom:-20px;left:-10px;right:-10px;height:60px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60'%3E%3Cpath fill='rgba(255,255,255,0.07)' d='M0,30 C200,0 400,60 600,30 C800,0 1000,60 1200,30 L1200,60 L0,60Z'/%3E%3C/svg%3E") repeat-x bottom;background-size:600px 40px}
+.header h1{font-size:20px;font-weight:500;color:#fff;margin-bottom:2px}
+.header p{font-size:12px;color:rgba(255,255,255,0.65);margin-bottom:1rem}
+.streak-row{display:flex;align-items:center;gap:8px}
+.streak-badge{background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;font-size:12px;color:#fff;display:inline-flex;align-items:center;gap:5px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
+.stat-card{background:#fff;border-radius:10px;padding:.75rem 1rem;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.stat-label{font-size:11px;color:#888;margin-bottom:2px}
+.stat-val{font-size:22px;font-weight:500;color:#1a1a1a}
+.stat-unit{font-size:11px;color:#888;margin-left:2px}
+.stat-best{font-size:10px;color:#185fa5;margin-top:2px}
+.section{background:#fff;border:0.5px solid #e5e7eb;border-radius:14px;padding:1rem 1.25rem;margin-bottom:.75rem}
+.section-title{font-size:13px;font-weight:500;color:#666;margin-bottom:.75rem;display:flex;align-items:center;gap:6px}
+label{font-size:11px;color:#888;display:block;margin-bottom:3px}
+input,select,textarea{width:100%;font-size:14px;padding:8px 10px;border:0.5px solid #d1d5db;border-radius:8px;background:#fff;color:#1a1a1a;outline:none;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#185fa5;box-shadow:0 0 0 2px rgba(24,95,165,0.12)}
+textarea{height:56px;resize:none}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.form-row.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column}
+.submit-btn{width:100%;padding:9px;background:#185fa5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;margin-top:4px;transition:background .15s}
+.submit-btn:hover{background:#0c447c}
+.chart-wrap{position:relative;height:160px;margin-top:4px}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-nav span{font-size:13px;font-weight:500;color:#1a1a1a}
+.cal-nav button{background:none;border:0.5px solid #d1d5db;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:13px;color:#555}
+.cal-nav button:hover{background:#f3f4f6}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-day{aspect-ratio:1;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;background:#f3f4f6;color:#aaa}
+.cal-day.done{background:#185fa5;color:#fff;font-weight:500}
+.cal-day.today{outline:1.5px solid #185fa5;outline-offset:1px}
+.cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px}
+.cal-weekdays span{font-size:9px;text-align:center;color:#aaa}
+.record-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
+.record-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f9fafb;border-radius:8px}
+.record-icon{width:32px;height:32px;border-radius:50%;background:#e6f1fb;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.record-main{flex:1;min-width:0}
+.record-date{font-size:11px;color:#888}
+.record-stats{font-size:13px;color:#1a1a1a;font-weight:500}
+.record-note{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.record-del{color:#ccc;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px}
+.record-del:hover{color:#e24b4a}
+.badge-row{display:flex;flex-wrap:wrap;gap:8px}
+.badge{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;border-radius:8px;border:0.5px solid #e5e7eb;background:#f9fafb;min-width:72px;opacity:.4}
+.badge.earned{opacity:1;background:#e6f1fb;border-color:#b5d4f4}
+.badge i{font-size:20px;color:#185fa5}
+.badge span{font-size:10px;color:#666;text-align:center}
+.new-best{display:inline-block;background:#D85A30;color:#fff;font-size:10px;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.empty-state{text-align:center;padding:2rem;color:#bbb;font-size:13px}
+@media(max-width:480px){
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .form-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1><i class="ti ti-wave-sine" style="font-size:18px;vertical-align:-1px;margin-right:6px"></i>游泳日记</h1>
+    <p id="todayDate"></p>
+    <div class="streak-row">
+      <div class="streak-badge"><i class="ti ti-flame"></i><span id="streakText">连续 0 天</span></div>
+      <div class="streak-badge"><i class="ti ti-calendar-check"></i><span id="totalTimesText">累计 0 次</span></div>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">总距离</div>
+      <div class="stat-val" id="totalDist">0<span class="stat-unit">m</span></div>
+      <div class="stat-best" id="bestDist"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">总时长</div>
+      <div class="stat-val" id="totalTime">0<span class="stat-unit">min</span></div>
+      <div class="stat-best" id="bestTime"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">消耗卡路里</div>
+      <div class="stat-val" id="totalCal">0<span class="stat-unit">kcal</span></div>
+      <div class="stat-best" id="bestCal"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><i class="ti ti-plus"></i>记录训练（可补录过去日期）</div>
+    <div class="form-row">
+      <div class="field"><label>日期</label><input type="date" id="inDate"></div>
+      <div class="field"><label>泳姿</label>
+        <select id="inStyle">
+          <option>自由泳</option><option>蛙泳</option><option>蝶泳</option><option>仰泳</option><option>混合</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>距离（米）</label><input type="number" id="inDist" min="0" placeholder="例如 1000"></div>
+      <div class="field"><label>时长（分钟）</label><input type="number" id="inTime" min="0" placeholder="例如 45"></div>
+    </div>
+    <div class="form-row full">
+      <div class="field"><label>消耗卡路里</label><input type="number" id="inCal" min="0" placeholder="例如 300"></div>
+    </div>
+    <div class="form-row full">
+      <div class="field"><label>心情 / 感受</label><textarea id="inNote" placeholder="今天的水感特别好，超越了上周的距离..."></textarea></div>
+    </div>
+    <button class="submit-btn" onclick="addRecord()"><i class="ti ti-device-floppy" style="margin-right:5px"></i>保存这次训练</button>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><i class="ti ti-chart-line"></i>距离趋势</div>
+    <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><i class="ti ti-calendar"></i>打卡日历</div>
+    <div class="cal-nav">
+      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span id="calMonthLabel"></span>
+      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="cal-weekdays"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><i class="ti ti-medal"></i>成就徽章</div>
+    <div class="badge-row" id="badgeRow"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><i class="ti ti-list"></i>历史记录</div>
+    <div class="record-list" id="recordList"></div>
+  </div>
+</div>
+
+<script>
+let records=[];let chart=null;
+const now=new Date();
+let calYear=now.getFullYear(),calMonth=now.getMonth();
+
+const BADGES=[
+  {id:'first',icon:'ti-star',label:'首次下水',check:r=>r.length>=1},
+  {id:'km1',icon:'ti-trophy',label:'累计1km',check:r=>r.reduce((s,x)=>s+x.dist,0)>=1000},
+  {id:'km10',icon:'ti-trophy',label:'累计10km',check:r=>r.reduce((s,x)=>s+x.dist,0)>=10000},
+  {id:'streak5',icon:'ti-flame',label:'连续5天',check:r=>calcStreak(r)>=5},
+  {id:'days10',icon:'ti-calendar-check',label:'打卡10天',check:r=>r.length>=10},
+  {id:'cal5000',icon:'ti-bolt',label:'燃烧5000kcal',check:r=>r.reduce((s,x)=>s+x.cal,0)>=5000},
+];
+
+function save(){try{localStorage.setItem('swim_records',JSON.stringify(records))}catch(e){}}
+function load(){try{const d=localStorage.getItem('swim_records');if(d)records=JSON.parse(d)}catch(e){records=[];}}
+function fmtDate(d){return d.toISOString().slice(0,10)}
+
+function calcStreak(recs){
+  if(!recs.length)return 0;
+  const dates=[...new Set(recs.map(r=>r.date))].sort((a,b)=>b.localeCompare(a));
+  let streak=0,cur=new Date();
+  cur.setHours(0,0,0,0);
+  for(let d of dates){
+    if(d===fmtDate(cur)){streak++;cur.setDate(cur.getDate()-1)}else break;
+  }
+  return streak;
+}
+
+function addRecord(){
+  const dateVal=document.getElementById('inDate').value;
+  const dist=parseInt(document.getElementById('inDist').value)||0;
+  const time=parseInt(document.getElementById('inTime').value)||0;
+  const cal=parseInt(document.getElementById('inCal').value)||0;
+  const style=document.getElementById('inStyle').value;
+  const note=document.getElementById('inNote').value.trim();
+  if(!dateVal){alert('请选择日期');return;}
+  if(!dist&&!time&&!cal){alert('请至少填写一项数据');return;}
+  const prev={dist:records.reduce((s,x)=>Math.max(s,x.dist),0),time:records.reduce((s,x)=>Math.max(s,x.time),0),cal:records.reduce((s,x)=>Math.max(s,x.cal),0)};
+  const isNew={dist:dist>0&&dist>prev.dist,time:time>0&&time>prev.time,cal:cal>0&&cal>prev.cal};
+  records.push({id:Date.now(),date:dateVal,dist,time,cal,style,note,isNew});
+  records.sort((a,b)=>b.date.localeCompare(a.date));
+  save();
+  ['inDist','inTime','inCal','inNote'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('inDate').value=fmtDate(new Date());
+  render();
+}
+
+function deleteRecord(id){if(confirm('确认删除这条记录？')){records=records.filter(r=>r.id!==id);save();render();}}
+
+function changeMonth(dir){
+  calMonth+=dir;
+  if(calMonth>11){calMonth=0;calYear++;}
+  if(calMonth<0){calMonth=11;calYear--;}
+  renderCalendar();
+}
+
+function render(){renderHeader();renderStats();renderCalendar();renderChart();renderBadges();renderList();}
+
+function renderHeader(){
+  const streak=calcStreak(records);
+  document.getElementById('streakText').textContent=`连续 ${streak} 天`;
+  document.getElementById('totalTimesText').textContent=`累计 ${records.length} 次`;
+  document.getElementById('todayDate').textContent=`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+}
+
+function renderStats(){
+  const total={dist:0,time:0,cal:0},best={dist:0,time:0,cal:0};
+  records.forEach(r=>{total.dist+=r.dist;total.time+=r.time;total.cal+=r.cal;
+    if(r.dist>best.dist)best.dist=r.dist;if(r.time>best.time)best.time=r.time;if(r.cal>best.cal)best.cal=r.cal;});
+  document.getElementById('totalDist').innerHTML=`${total.dist.toLocaleString()}<span class="stat-unit">m</span>`;
+  document.getElementById('totalTime').innerHTML=`${total.time.toLocaleString()}<span class="stat-unit">min</span>`;
+  document.getElementById('totalCal').innerHTML=`${total.cal.toLocaleString()}<span class="stat-unit">kcal</span>`;
+  document.getElementById('bestDist').textContent=best.dist?`单次最佳 ${best.dist}m`:'';
+  document.getElementById('bestTime').textContent=best.time?`单次最佳 ${best.time}min`:'';
+  document.getElementById('bestCal').textContent=best.cal?`单次最佳 ${best.cal}kcal`:'';
+}
+
+function renderCalendar(){
+  const monthNames=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('calMonthLabel').textContent=`${calYear}年 ${monthNames[calMonth]}`;
+  const grid=document.getElementById('calGrid');grid.innerHTML='';
+  const first=new Date(calYear,calMonth,1),daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const doneDates=new Set(records.map(r=>r.date)),todayStr=fmtDate(new Date());
+  for(let i=0;i<first.getDay();i++){const d=document.createElement('div');d.className='cal-day';grid.appendChild(d);}
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const div=document.createElement('div');
+    div.className='cal-day'+(doneDates.has(ds)?' done':'')+(ds===todayStr?' today':'');
+    div.textContent=d;grid.appendChild(div);
+  }
+}
+
+function renderChart(){
+  const wrap=document.getElementById('trendChart').parentNode;
+  if(!records.length){wrap.innerHTML='<div class="empty-state"><i class="ti ti-swim" style="font-size:24px;display:block;margin:0 auto 8px"></i>记录第一次游泳后，这里会显示趋势图</div>';return;}
+  if(!document.getElementById('trendChart')){wrap.innerHTML='<div class="chart-wrap"><canvas id="trendChart"></canvas></div>';}
+  const sorted=[...records].sort((a,b)=>a.date.localeCompare(b.date));
+  const labels=sorted.map(r=>r.date.slice(5)),data=sorted.map(r=>r.dist);
+  if(chart)chart.destroy();
+  chart=new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{labels,datasets:[{label:'距离(m)',data,fill:true,backgroundColor:'rgba(24,95,165,0.10)',borderColor:'#185fa5',pointBackgroundColor:'#185fa5',pointRadius:4,tension:0.35,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}},y:{ticks:{font:{size:10}},beginAtZero:false}}}
+  });
+}
+
+function renderBadges(){
+  document.getElementById('badgeRow').innerHTML=BADGES.map(b=>`
+    <div class="badge${b.check(records)?' earned':''}">
+      <i class="ti ${b.icon}"></i><span>${b.label}</span>
+    </div>`).join('');
+}
+
+function renderList(){
+  const list=document.getElementById('recordList');
+  if(!records.length){list.innerHTML='<div class="empty-state"><i class="ti ti-swim" style="font-size:24px;display:block;margin:0 auto 8px"></i>还没有记录，去游泳吧！</div>';return;}
+  list.innerHTML=records.map(r=>`
+    <div class="record-item">
+      <div class="record-icon"><i class="ti ti-swim" style="color:#185fa5;font-size:16px"></i></div>
+      <div class="record-main">
+        <div class="record-date">${r.date} · ${r.style}</div>
+        <div class="record-stats">${r.dist?r.dist+'m · ':''}${r.time?r.time+'min · ':''}${r.cal?r.cal+'kcal':''}${r.isNew&&(r.isNew.dist||r.isNew.time||r.isNew.cal)?'<span class="new-best">新记录</span>':''}</div>
+        ${r.note?`<div class="record-note">${r.note}</div>`:''}
+      </div>
+      <button class="record-del" onclick="deleteRecord(${r.id})"><i class="ti ti-trash"></i></button>
+    </div>`).join('');
+}
+
+load();
+document.getElementById('inDate').value=fmtDate(new Date());
+render();
+</script>
+</body>
+</html>
