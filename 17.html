@@ -69,6 +69,20 @@ textarea{height:56px;resize:none}
 .new-best{display:inline-block;background:#D85A30;color:#fff;font-size:10px;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
 .empty-state{text-align:center;padding:2rem;color:#bbb;font-size:13px}
 .loading{text-align:center;padding:2rem;color:#888;font-size:13px}
+.ai-key-row{display:flex;gap:6px;margin-bottom:10px}
+.ai-key-row input{font-size:12px;padding:6px 8px}
+.ai-key-btn{white-space:nowrap;font-size:12px;padding:6px 12px;background:#185fa5;color:#fff;border:none;border-radius:8px;cursor:pointer}
+.ai-key-btn:hover{background:#0c447c}
+.ai-messages{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;max-height:320px;overflow-y:auto}
+.ai-msg{font-size:13px;line-height:1.6;padding:8px 10px;border-radius:8px;max-width:92%}
+.ai-msg.user{background:#185fa5;color:#fff;align-self:flex-end}
+.ai-msg.ai{background:#f0f6fb;color:#1a1a1a;align-self:flex-start;white-space:pre-wrap}
+.ai-msg.thinking{color:#888;font-size:12px;font-style:italic;background:#f9fafb;align-self:flex-start}
+.ai-input-row{display:flex;gap:6px}
+.ai-input-row input{font-size:13px;padding:7px 10px}
+.ai-send{padding:7px 14px;background:#185fa5;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap}
+.ai-send:hover{background:#0c447c}
+.ai-send:disabled{background:#93b8d4;cursor:not-allowed}
 @media(max-width:600px){
   .stats-grid{grid-template-columns:1fr 1fr}
   .form-row{grid-template-columns:1fr}
@@ -156,6 +170,25 @@ textarea{height:56px;resize:none}
   <div class="section">
     <div class="section-title"><i class="ti ti-medal"></i>成就徽章</div>
     <div class="badge-row" id="badgeRow"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><i class="ti ti-robot"></i>训练顾问 <span style="font-size:10px;color:#aaa;font-weight:400">· Groq AI</span></div>
+    <div id="aiKeySetup">
+      <div class="ai-key-row">
+        <input type="password" id="groqKeyInput" placeholder="输入 Groq API Key（gsk_...）">
+        <button class="ai-key-btn" onclick="saveGroqKey()">保存</button>
+      </div>
+      <div style="font-size:11px;color:#aaa">Key 仅保存在本地浏览器，不会上传</div>
+    </div>
+    <div id="aiChat" style="display:none">
+      <div class="ai-messages" id="aiMessages"></div>
+      <div class="ai-input-row">
+        <input type="text" id="aiInput" placeholder="问问你的训练情况..." onkeydown="if(event.key==='Enter')sendAI()">
+        <button class="ai-send" id="aiSendBtn" onclick="sendAI()">发送</button>
+      </div>
+      <div style="font-size:10px;color:#ccc;margin-top:6px;text-align:right"><span id="aiKeyHint"></span> · <a href="#" onclick="clearGroqKey();return false" style="color:#ccc">重置 Key</a></div>
+    </div>
   </div>
 
   <div class="section">
@@ -422,6 +455,85 @@ function renderList(){
   }).join('');
 }
 
+// AI
+const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+let aiHistory = [];
+
+function getGroqKey(){return localStorage.getItem('groq_key')||'';}
+function saveGroqKey(){
+  const k=document.getElementById('groqKeyInput').value.trim();
+  if(!k){alert('请输入 API Key');return;}
+  localStorage.setItem('groq_key',k);
+  initAIPanel();
+}
+function clearGroqKey(){localStorage.removeItem('groq_key');aiHistory=[];initAIPanel();}
+function initAIPanel(){
+  const k=getGroqKey();
+  document.getElementById('aiKeySetup').style.display=k?'none':'block';
+  document.getElementById('aiChat').style.display=k?'block':'none';
+  if(k)document.getElementById('aiKeyHint').textContent='Key: '+k.slice(0,8)+'...';
+}
+
+function buildSystemPrompt(){
+  const sorted=[...records].sort((a,b)=>a.date.localeCompare(b.date));
+  const summary=sorted.map(r=>{
+    const pace=Number(r.dist)&&Number(r.time)?`配速${Math.floor(Number(r.time)*60*100/Number(r.dist)/60)}:${String(Math.round(Number(r.time)*60*100/Number(r.dist)%60)).padStart(2,'0')}/百米`:'';
+    return `${r.date} ${r.style} 距离${r.dist||'-'}m 时长${r.time||'-'}min 卡路里${r.cal||'-'}kcal${pace?' '+pace:''}${r.note?' 感受:'+r.note:''}`;
+  }).join('\n');
+  const total={dist:records.reduce((s,r)=>s+Number(r.dist),0),time:records.reduce((s,r)=>s+Number(r.time),0),count:records.length};
+  return `你是一个专业的游泳训练顾问，分析用户的游泳数据并给出简洁实用的建议。请用中文回答，语气友好自然。
+
+用户游泳记录（共${total.count}次，总距离${total.dist}m，总时长${total.time}min）：
+${summary||'暂无记录'}
+
+请根据以上真实数据回答用户的问题。回答简洁，不超过200字。`;
+}
+
+function appendMsg(role,text){
+  const div=document.createElement('div');
+  div.className='ai-msg '+role;
+  div.textContent=text;
+  document.getElementById('aiMessages').appendChild(div);
+  document.getElementById('aiMessages').scrollTop=9999;
+  return div;
+}
+
+async function sendAI(){
+  const input=document.getElementById('aiInput');
+  const q=input.value.trim();
+  if(!q)return;
+  const key=getGroqKey();
+  if(!key){initAIPanel();return;}
+  input.value='';
+  appendMsg('user',q);
+  const thinking=appendMsg('thinking','思考中...');
+  const btn=document.getElementById('aiSendBtn');
+  btn.disabled=true;
+  aiHistory.push({role:'user',content:q});
+  try{
+    const res=await fetch(GROQ_API,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({model:GROQ_MODEL,messages:[{role:'system',content:buildSystemPrompt()},...aiHistory],max_tokens:400,temperature:0.7})
+    });
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||res.status);}
+    const data=await res.json();
+    const reply=data.choices[0].message.content;
+    thinking.remove();
+    appendMsg('ai',reply);
+    aiHistory.push({role:'assistant',content:reply});
+    if(aiHistory.length>20)aiHistory=aiHistory.slice(-20);
+  }catch(e){
+    thinking.textContent='出错了：'+e.message;
+    thinking.className='ai-msg thinking';
+    aiHistory.pop();
+  }
+  btn.disabled=false;
+  input.focus();
+}
+
+initAIPanel();
 document.getElementById('inDate').value=fmtDate(new Date());
 loadRecords();
 </script>
