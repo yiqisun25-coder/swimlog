@@ -19,7 +19,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sync-status{font-size:11px;color:rgba(255,255,255,0.6);margin-top:6px;display:flex;align-items:center;gap:4px}
 .sync-status.syncing{color:rgba(255,255,255,0.9)}
 .sync-status.error{color:#ffb3b3}
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
 .stat-card{background:#fff;border-radius:10px;padding:.75rem 1rem;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
 .stat-label{font-size:11px;color:#888;margin-bottom:2px}
 .stat-val{font-size:22px;font-weight:500;color:#1a1a1a}
@@ -69,7 +69,7 @@ textarea{height:56px;resize:none}
 .new-best{display:inline-block;background:#D85A30;color:#fff;font-size:10px;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
 .empty-state{text-align:center;padding:2rem;color:#bbb;font-size:13px}
 .loading{text-align:center;padding:2rem;color:#888;font-size:13px}
-@media(max-width:480px){
+@media(max-width:600px){
   .stats-grid{grid-template-columns:1fr 1fr}
   .form-row{grid-template-columns:1fr}
 }
@@ -103,6 +103,11 @@ textarea{height:56px;resize:none}
       <div class="stat-val" id="totalCal">0<span class="stat-unit">kcal</span></div>
       <div class="stat-best" id="bestCal"></div>
     </div>
+    <div class="stat-card">
+      <div class="stat-label">平均配速</div>
+      <div class="stat-val" id="avgPace" style="font-size:18px">--<span class="stat-unit">/百米</span></div>
+      <div class="stat-best" id="bestPace"></div>
+    </div>
   </div>
 
   <div class="section">
@@ -131,8 +136,8 @@ textarea{height:56px;resize:none}
   <div class="section">
     <div class="section-title"><i class="ti ti-chart-line"></i>趋势图</div>
     <div class="chart-tabs">
-      <button class="chart-tab active" id="tabDist" onclick="switchChart('dist')">&#8203;距离</button>
-      <button class="chart-tab" id="tabPace" onclick="switchChart('pace')">&#8203;配速</button>
+      <button class="chart-tab active" id="tabDist" onclick="switchChart('dist')">距离</button>
+      <button class="chart-tab" id="tabPace" onclick="switchChart('pace')">配速</button>
     </div>
     <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
   </div>
@@ -327,6 +332,16 @@ function renderStats(){
   document.getElementById('bestDist').textContent=best.dist?`单次最佳 ${best.dist}m`:'';
   document.getElementById('bestTime').textContent=best.time?`单次最佳 ${best.time}min`:'';
   document.getElementById('bestCal').textContent=best.cal?`单次最佳 ${best.cal}kcal`:'';
+  const paceRecs=records.filter(r=>Number(r.dist)&&Number(r.time));
+  if(paceRecs.length){
+    const avgSec=Math.round(total.time*60*100/total.dist);
+    document.getElementById('avgPace').innerHTML=`${Math.floor(avgSec/60)}:${String(avgSec%60).padStart(2,'0')}<span class="stat-unit">/百米</span>`;
+    const bestSec=Math.min(...paceRecs.map(r=>Math.round(Number(r.time)*60*100/Number(r.dist))));
+    document.getElementById('bestPace').textContent=`最快 ${Math.floor(bestSec/60)}:${String(bestSec%60).padStart(2,'0')}`;
+  } else {
+    document.getElementById('avgPace').innerHTML=`--<span class="stat-unit">/百米</span>`;
+    document.getElementById('bestPace').textContent='';
+  }
 }
 
 function renderCalendar(){
