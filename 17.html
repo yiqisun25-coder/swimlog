@@ -173,13 +173,17 @@ textarea{height:56px;resize:none}
   </div>
 
   <div class="section">
-    <div class="section-title"><i class="ti ti-robot"></i>训练顾问 <span style="font-size:10px;color:#aaa;font-weight:400">· Groq AI</span></div>
+    <div class="section-title"><i class="ti ti-robot"></i>训练顾问 <span style="font-size:10px;color:#aaa;font-weight:400" id="aiProviderLabel">· AI</span></div>
     <div id="aiKeySetup">
-      <div class="ai-key-row">
-        <input type="password" id="groqKeyInput" placeholder="输入 Groq API Key（gsk_...）">
-        <button class="ai-key-btn" onclick="saveGroqKey()">保存</button>
+      <div class="chart-tabs" style="margin-bottom:10px">
+        <button class="chart-tab active" id="tabGroq" onclick="switchProvider('groq')">Groq</button>
+        <button class="chart-tab" id="tabOR" onclick="switchProvider('openrouter')">OpenRouter</button>
       </div>
-      <div style="font-size:11px;color:#aaa">Key 仅保存在本地浏览器，不会上传</div>
+      <div class="ai-key-row">
+        <input type="password" id="aiKeyInput" placeholder="输入 API Key">
+        <button class="ai-key-btn" onclick="saveAIKey()">保存</button>
+      </div>
+      <div style="font-size:11px;color:#aaa" id="aiKeyHelpText">Groq key 格式：gsk_...</div>
     </div>
     <div id="aiChat" style="display:none">
       <div class="ai-messages" id="aiMessages"></div>
@@ -187,7 +191,7 @@ textarea{height:56px;resize:none}
         <input type="text" id="aiInput" placeholder="问问你的训练情况..." onkeydown="if(event.key==='Enter')sendAI()">
         <button class="ai-send" id="aiSendBtn" onclick="sendAI()">发送</button>
       </div>
-      <div style="font-size:10px;color:#ccc;margin-top:6px;text-align:right"><span id="aiKeyHint"></span> · <a href="#" onclick="clearGroqKey();return false" style="color:#ccc">重置 Key</a></div>
+      <div style="font-size:10px;color:#ccc;margin-top:6px;text-align:right"><span id="aiKeyHint"></span> · <a href="#" onclick="clearAIKey();return false" style="color:#ccc">重置 Key</a></div>
     </div>
   </div>
 
@@ -456,23 +460,40 @@ function renderList(){
 }
 
 // AI
-const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const AI_PROVIDERS = {
+  groq:       {url:'https://api.groq.com/openai/v1/chat/completions',      model:'llama-3.3-70b-versatile',                   label:'Groq',       hint:'gsk_...'},
+  openrouter: {url:'https://openrouter.ai/api/v1/chat/completions',         model:'meta-llama/llama-3.3-70b-instruct:free',     label:'OpenRouter', hint:'sk-or-...'},
+};
+let aiProvider = localStorage.getItem('ai_provider')||'groq';
 let aiHistory = [];
 
-function getGroqKey(){return localStorage.getItem('groq_key')||'';}
-function saveGroqKey(){
-  const k=document.getElementById('groqKeyInput').value.trim();
-  if(!k){alert('请输入 API Key');return;}
-  localStorage.setItem('groq_key',k);
+function switchProvider(p){
+  aiProvider=p;
+  localStorage.setItem('ai_provider',p);
+  document.getElementById('tabGroq').className='chart-tab'+(p==='groq'?' active':'');
+  document.getElementById('tabOR').className='chart-tab'+(p==='openrouter'?' active':'');
+  const cfg=AI_PROVIDERS[p];
+  document.getElementById('aiKeyHelpText').textContent=cfg.label+' key 格式：'+cfg.hint;
+  document.getElementById('aiKeyInput').placeholder='输入 '+cfg.label+' API Key';
   initAIPanel();
 }
-function clearGroqKey(){localStorage.removeItem('groq_key');aiHistory=[];initAIPanel();}
+function getAIKey(){return localStorage.getItem('ai_key_'+aiProvider)||'';}
+function saveAIKey(){
+  const k=document.getElementById('aiKeyInput').value.trim();
+  if(!k){alert('请输入 API Key');return;}
+  localStorage.setItem('ai_key_'+aiProvider,k);
+  initAIPanel();
+}
+function clearAIKey(){localStorage.removeItem('ai_key_'+aiProvider);aiHistory=[];initAIPanel();}
 function initAIPanel(){
-  const k=getGroqKey();
+  const k=getAIKey();
+  const cfg=AI_PROVIDERS[aiProvider];
+  document.getElementById('aiProviderLabel').textContent='· '+cfg.label;
+  document.getElementById('tabGroq').className='chart-tab'+(aiProvider==='groq'?' active':'');
+  document.getElementById('tabOR').className='chart-tab'+(aiProvider==='openrouter'?' active':'');
   document.getElementById('aiKeySetup').style.display=k?'none':'block';
   document.getElementById('aiChat').style.display=k?'block':'none';
-  if(k)document.getElementById('aiKeyHint').textContent='Key: '+k.slice(0,8)+'...';
+  if(k)document.getElementById('aiKeyHint').textContent=cfg.label+' · Key: '+k.slice(0,8)+'...';
 }
 
 function buildSystemPrompt(){
@@ -503,8 +524,9 @@ async function sendAI(){
   const input=document.getElementById('aiInput');
   const q=input.value.trim();
   if(!q)return;
-  const key=getGroqKey();
+  const key=getAIKey();
   if(!key){initAIPanel();return;}
+  const cfg=AI_PROVIDERS[aiProvider];
   input.value='';
   appendMsg('user',q);
   const thinking=appendMsg('thinking','思考中...');
@@ -512,10 +534,11 @@ async function sendAI(){
   btn.disabled=true;
   aiHistory.push({role:'user',content:q});
   try{
-    const res=await fetch(GROQ_API,{
+    const extraHeaders=aiProvider==='openrouter'?{'HTTP-Referer':'https://yiqisun25-coder.github.io/swimlog/','X-Title':'游泳日记'}:{};
+    const res=await fetch(cfg.url,{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model:GROQ_MODEL,messages:[{role:'system',content:buildSystemPrompt()},...aiHistory],max_tokens:400,temperature:0.7})
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,...extraHeaders},
+      body:JSON.stringify({model:cfg.model,messages:[{role:'system',content:buildSystemPrompt()},...aiHistory],max_tokens:400,temperature:0.7})
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||res.status);}
     const data=await res.json();
