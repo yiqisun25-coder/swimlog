@@ -445,7 +445,7 @@ function renderList(){
   if(!records.length){list.innerHTML='<div class="empty-state"><i class="ti ti-swim" style="font-size:24px;display:block;margin:0 auto 8px"></i>还没有记录，去游泳吧！</div>';return;}
   list.innerHTML=records.map(r=>{
     const dist=Number(r.dist),time=Number(r.time),cal=Number(r.cal);
-    const pace=dist&&time?`${Math.floor(time*1000/dist/60).toString().padStart(2,'0')}:${String(Math.round(time*1000/dist%60)).padStart(2,'0')} /百米`:'';
+    const pace=dist&&time?(()=>{const s=Math.round(time*60*100/dist);return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;})():'';
     return `<div class="record-item">
       <div class="record-icon"><i class="ti ti-swim" style="color:#185fa5;font-size:16px"></i></div>
       <div class="record-main">
