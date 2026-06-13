@@ -87,6 +87,16 @@ textarea{height:56px;resize:none}
   .stats-grid{grid-template-columns:1fr 1fr}
   .form-row{grid-template-columns:1fr}
 }
+.share-btn{width:100%;margin-top:8px;padding:8px;background:#f0f6fb;color:#185fa5;border:0.5px solid #b5d4f4;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.share-btn:hover{background:#e0eef8}
+.share-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;padding:1rem}
+.share-modal.open{display:flex}
+.share-box{background:#fff;border-radius:16px;padding:1rem;max-width:360px;width:100%;text-align:center}
+.share-box canvas{width:100%;border-radius:10px;display:block}
+.share-box-btns{display:flex;gap:8px;margin-top:10px}
+.share-box-btns button{flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;cursor:pointer}
+.share-dl{background:#185fa5;color:#fff}
+.share-close{background:#f3f4f6;color:#555}
 </style>
 </head>
 <body>
@@ -121,6 +131,19 @@ textarea{height:56px;resize:none}
       <div class="stat-label">平均配速</div>
       <div class="stat-val" id="avgPace" style="font-size:18px">--<span class="stat-unit">/百米</span></div>
       <div class="stat-best" id="bestPace"></div>
+    </div>
+  </div>
+
+  <button class="share-btn" onclick="openShareCard()"><i class="ti ti-share"></i>生成训练分享卡片</button>
+
+  <div id="shareModal" class="share-modal" onclick="if(event.target===this)closeShareCard()">
+    <div class="share-box">
+      <canvas id="shareCanvas" width="600" height="780"></canvas>
+      <div class="share-box-btns">
+        <button class="share-dl" onclick="downloadCard()"><i class="ti ti-download" style="margin-right:4px"></i>保存图片</button>
+        <button class="share-close" onclick="closeShareCard()">关闭</button>
+      </div>
+      <div style="font-size:11px;color:#bbb;margin-top:6px">长按图片也可以保存到相册</div>
     </div>
   </div>
 
@@ -253,7 +276,8 @@ async function loadRecords(){
   try{
     setSync('正在同步...','syncing');
     const res = await fetch(BASE+'/latest', {headers});
-    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}    const data = await res.json();
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}
+    const data = await res.json();
     const cloud=(Array.isArray(data)?data:[]).map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}));
     cloud.sort((a,b)=>b.date.localeCompare(a.date));
     const cloudIds=new Set(cloud.map(r=>String(r.id)));
@@ -277,7 +301,8 @@ async function saveToCloud(){
     headers,
     body: JSON.stringify(records)
   });
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}}
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}
+}
 
 async function addRecord(){
   const dateVal=document.getElementById('inDate').value;
@@ -545,6 +570,120 @@ async function sendAI(){
   }
   btn.disabled=false;
   input.focus();
+}
+
+function openShareCard(){
+  if(!records.length){alert('还没有训练记录哦，去游泳再来！');return;}
+  drawShareCard();
+  document.getElementById('shareModal').classList.add('open');
+}
+function closeShareCard(){document.getElementById('shareModal').classList.remove('open');}
+function downloadCard(){
+  const a=document.createElement('a');
+  a.download='swimlog-'+fmtDate(new Date())+'.png';
+  a.href=document.getElementById('shareCanvas').toDataURL('image/png');
+  a.click();
+}
+
+function drawShareCard(){
+  const canvas=document.getElementById('shareCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=600,H=780;
+  canvas.width=W;canvas.height=H;
+
+  const bg=ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#0c3d5c');
+  bg.addColorStop(0.55,'#185fa5');
+  bg.addColorStop(1,'#2196b8');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+  ctx.save();ctx.globalAlpha=0.07;
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(W+80,H*0.18,220,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(-60,H*0.75,180,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+
+  ctx.save();ctx.globalAlpha=0.12;ctx.fillStyle='#fff';
+  ctx.beginPath();
+  ctx.moveTo(0,H-80);
+  for(let x=0;x<=W;x+=10){ctx.lineTo(x,H-80+Math.sin(x/60)*18);}
+  ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fill();
+  ctx.globalAlpha=0.07;
+  ctx.beginPath();
+  ctx.moveTo(0,H-50);
+  for(let x=0;x<=W;x+=10){ctx.lineTo(x,H-50+Math.sin(x/50+1)*14);}
+  ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font='500 22px -apple-system,sans-serif';
+  ctx.textAlign='center';ctx.fillText('🏄 游泳训练报告',W/2,62);
+
+  const d=new Date();
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='18px -apple-system,sans-serif';
+  ctx.fillText(`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`,W/2,96);
+
+  ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(60,118);ctx.lineTo(W-60,118);ctx.stroke();
+
+  const total={dist:0,time:0,cal:0};
+  records.forEach(r=>{total.dist+=Number(r.dist);total.time+=Number(r.time);total.cal+=Number(r.cal);});
+  const paceRecs=records.filter(r=>Number(r.dist)&&Number(r.time));
+  let avgPaceStr='--';
+  if(paceRecs.length){const s=Math.round(total.time*60*100/total.dist);avgPaceStr=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
+
+  const stats=[
+    {val:records.length+'',unit:'次',label:'累计训练'},
+    {val:total.dist>=1000?(total.dist/1000).toFixed(1)+'':total.dist+'',unit:total.dist>=1000?'km':'m',label:'总距离'},
+    {val:total.time+'',unit:'min',label:'总时长'},
+    {val:avgPaceStr,unit:'/百米',label:'平均配速'},
+    {val:total.cal+'',unit:'kcal',label:'消耗卡路里'},
+    {val:calcStreak(records)+'',unit:'天',label:'连续打卡'},
+  ];
+
+  const cols=3,rows=2,padX=50,cardW=(W-padX*2-20*(cols-1))/cols,cardH=130;
+  const startY=140;
+  stats.forEach((s,i)=>{
+    const col=i%cols,row=Math.floor(i/cols);
+    const x=padX+col*(cardW+20),y=startY+row*(cardH+14);
+    ctx.save();ctx.globalAlpha=0.18;ctx.fillStyle='#fff';
+    roundRect(ctx,x,y,cardW,cardH,12);ctx.fill();ctx.restore();
+    ctx.fillStyle='#fff';ctx.font=`bold ${s.val.length>5?30:38}px -apple-system,sans-serif`;
+    ctx.textAlign='center';ctx.fillText(s.val,x+cardW/2,y+cardH*0.52);
+    ctx.fillStyle='rgba(255,255,255,0.65)';ctx.font='16px -apple-system,sans-serif';
+    ctx.fillText(s.unit,x+cardW/2,y+cardH*0.52+26);
+    ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='15px -apple-system,sans-serif';
+    ctx.fillText(s.label,x+cardW/2,y+22);
+  });
+
+  const recY=startY+rows*(cardH+14)+16;
+  ctx.fillStyle='rgba(255,255,255,0.18)';
+  roundRect(ctx,50,recY,W-100,H-recY-90,12);ctx.fill();
+
+  ctx.fillStyle='rgba(255,255,255,0.6)';ctx.font='500 16px -apple-system,sans-serif';
+  ctx.textAlign='left';ctx.fillText('最近训练',70,recY+26);
+
+  const recent=records.slice(0,4);
+  recent.forEach((r,i)=>{
+    const ry=recY+52+i*46;
+    ctx.fillStyle='rgba(255,255,255,0.12)';
+    roundRect(ctx,62,ry-20,W-124,40,8);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.9)';ctx.font='500 15px -apple-system,sans-serif';
+    ctx.textAlign='left';ctx.fillText(r.date.slice(5)+' '+r.style,76,ry+2);
+    const dist=Number(r.dist),time=Number(r.time);
+    let info=(dist?dist+'m ':'')+( time?time+'min':'');
+    if(dist&&time){const s=Math.round(time*60*100/dist);info+=`  ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}/百米`;}
+    ctx.fillStyle='rgba(255,255,255,0.55)';ctx.font='13px -apple-system,sans-serif';
+    ctx.textAlign='right';ctx.fillText(info,W-76,ry+2);
+  });
+
+  ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font='14px -apple-system,sans-serif';
+  ctx.textAlign='center';ctx.fillText('🌊 游泳日记 · swimlog',W/2,H-28);
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
 }
 
 initAIPanel();
