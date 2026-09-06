@@ -148,6 +148,11 @@ textarea{height:56px;resize:none}
 .kw:hover{border-color:currentColor}
 .kw-legend{font-size:10px;color:#bbb;margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
 .kw-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px;vertical-align:0}
+.mood{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:1px 7px;border-radius:10px;margin-left:6px;font-weight:500;white-space:nowrap}
+.mood-list{display:flex;flex-wrap:wrap;gap:6px}
+.mood-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:0.5px solid transparent;font-family:inherit;font-weight:500}
+.mood-chip:hover{border-color:currentColor}
+.mood-chip .kw-n{font-weight:600;font-size:11px;opacity:.7}
 </style>
 </head>
 <body>
@@ -311,7 +316,13 @@ textarea{height:56px;resize:none}
   </div>
 
   <div class="section">
-    <div class="section-title"><i class="ti ti-tags"></i>笔记关键词</div>
+    <div class="section-title"><i class="ti ti-mood-smile"></i>心情分布</div>
+    <div class="mood-list" id="moodList"></div>
+    <div class="kw-legend"><span style="color:#ccc">每条记录的心情由笔记内容归纳 · 点击可查看相关记录</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><i class="ti ti-tags"></i>笔记关键词 <span style="font-size:10px;color:#bbb;font-weight:400">出现 2 次以上</span></div>
     <div class="kw-list" id="kwList"></div>
     <div class="kw-legend">
       <span><span class="kw-dot" style="background:#185fa5"></span>技术动作</span>
@@ -572,7 +583,7 @@ function calcStreak(recs){
 }
 
 
-function render(){renderHeader();renderStats();renderHeatmap();renderChart();renderBadges();renderKeywords();renderFilterBar();renderList();renderPoolSelect();}
+function render(){renderHeader();renderStats();renderHeatmap();renderChart();renderBadges();renderMoods();renderKeywords();renderFilterBar();renderList();renderPoolSelect();}
 
 function renderHeader(){
   document.getElementById('streakText').textContent=`连续 ${calcStreak(records)} 天`;
@@ -670,12 +681,44 @@ function renderKeywords(){
   const hits=[];
   KEYWORDS.forEach(g=>g.words.forEach(w=>{
     const n=records.filter(r=>(r.note||'').includes(w)).length;
-    if(n>0)hits.push({w,n,c:g.c});
+    if(n>=2)hits.push({w,n,c:g.c});
   }));
   hits.sort((a,b)=>b.n-a.n);
-  if(!hits.length){box.innerHTML='<div style="font-size:12px;color:#bbb">还没有笔记，写点训练感受就能在这里看到高频词</div>';return;}
-  box.innerHTML=hits.slice(0,24).map(h=>
+  if(!hits.length){box.innerHTML='<div style="font-size:12px;color:#bbb">还没有出现两次以上的关键词，多记几次就有了</div>';return;}
+  box.innerHTML=hits.slice(0,20).map(h=>
     `<button class="kw c${h.c}" onclick="searchKeyword('${esc(h.w)}')">${esc(h.w)}<span class="kw-n">${h.n}</span></button>`
+  ).join('');
+}
+
+// Mood distilled from note text. Earlier entries win ties.
+const MOODS=[
+  {k:'突破',icon:'🎉',color:'#c2521f',bg:'#fdefe9',words:['首次','第一次','突破','新记录','终于','挑战','最长','最快','纪录','做到了']},
+  {k:'受挫',icon:'😤',color:'#a63838',bg:'#fbeaea',words:['气死','乱透','崩','退步','没规矩','烦','糟','被堵','偷懒','不到位','打折','无法','失败','差劲']},
+  {k:'领悟',icon:'💡',color:'#8a6d1f',bg:'#fbf3dd',words:['规律','印证','确认','结论','发现','意识','原来','找到了','明白','看出','验证']},
+  {k:'吃力',icon:'😓',color:'#6f6250',bg:'#f4f0e9',words:['撑不住','累','酸','疲劳','吃力','喘','下沉','没力','力竭','沉','硬撑']},
+  {k:'顺畅',icon:'😊',color:'#12798f',bg:'#e2f3f6',words:['改善','更稳','稳了','轻盈','水感','舒服','进步','提升','效果明显','放松','顺','轻松','好']},
+];
+
+function moodOf(note){
+  if(!note||!note.trim())return null;
+  let best=null;
+  for(const m of MOODS){
+    const n=m.words.filter(w=>note.includes(w)).length;
+    if(n>0&&(!best||n>best.n))best={...m,n};
+  }
+  return best||{k:'平稳',icon:'😌',color:'#8a949c',bg:'#f3f5f7',n:0};
+}
+
+function renderMoods(){
+  const box=document.getElementById('moodList');
+  if(!box)return;
+  const counts={};
+  records.forEach(r=>{const m=moodOf(r.note);if(m)counts[m.k]=(counts[m.k]||0)+1;});
+  const all=MOODS.concat([{k:'平稳',icon:'😌',color:'#8a949c',bg:'#f3f5f7'}]);
+  const hits=all.filter(m=>counts[m.k]).sort((a,b)=>counts[b.k]-counts[a.k]);
+  if(!hits.length){box.innerHTML='<div style="font-size:12px;color:#bbb">写下训练感受，这里会归纳出每次的心情</div>';return;}
+  box.innerHTML=hits.map(m=>
+    `<button class="mood-chip" style="background:${m.bg};color:${m.color}" onclick="searchKeyword('${m.k}')">${m.icon} ${m.k}<span class="kw-n">${counts[m.k]}</span></button>`
   ).join('');
 }
 
@@ -772,7 +815,8 @@ function getFiltered(){
     if(filterPool==='__nopool__'){if(r.pool)return false;}
     else if(filterPool!=='__all__'&&r.pool!==filterPool)return false;
     if(!q)return true;
-    return [r.date,r.style,r.pool,r.note].filter(Boolean).join(' ').toLowerCase().includes(q);
+    const m=moodOf(r.note);
+    return [r.date,r.style,r.pool,r.note,m&&m.k].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
 }
 
@@ -781,10 +825,11 @@ function recordHTML(r){
   const pace=dist&&time?(()=>{const s=Math.round(time*60*100/dist);return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;})():'';
   const note=r.note||'';
   const long=note.length>50;
+  const mood=moodOf(note);
   return `<div class="record-item" onclick="toggleActions(this)">
     <div class="record-icon"><i class="ti ti-swim" style="color:#185fa5;font-size:16px"></i></div>
     <div class="record-main">
-      <div class="record-date">${esc(r.date)} · ${esc(r.style)}${r.pool?' · <i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+esc(r.pool):''}</div>
+      <div class="record-date">${esc(r.date)} · ${esc(r.style)}${r.pool?' · <i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+esc(r.pool):''}${mood?`<span class="mood" style="background:${mood.bg};color:${mood.color}">${mood.icon} ${mood.k}</span>`:''}</div>
       <div class="record-stats">${dist?dist+'m · ':''}${time?time+'min · ':''}${cal?cal+'kcal':''}${r.isNew&&(r.isNew.dist||r.isNew.time||r.isNew.cal)?'<span class="new-best">新记录</span>':''}</div>
       ${pace?`<div class="record-pace"><i class="ti ti-gauge" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>配速 ${pace}</div>`:''}
       ${note?`<div class="record-note${long?' clamp':''}"${long?' onclick="event.stopPropagation();this.classList.toggle(\'clamp\')" title="点击展开/收起"':''}>${esc(note)}</div>`:''}
