@@ -983,7 +983,11 @@ async function sendAI(){
     aiHistory.push({role:'assistant',content:reply});
     if(aiHistory.length>20)aiHistory=aiHistory.slice(-20);
   }catch(e){
-    thinking.textContent='出错了：'+e.message;
+    const msg=String(e&&e.message||e);
+    const net=(e instanceof TypeError)||/load failed|failed to fetch|networkerror|network request failed/i.test(msg);
+    thinking.textContent=net
+      ? '连不上 api.groq.com —— 是网络没通，不是 Key 或额度的问题。手机直连国内网络访问不了 Groq，需要挂代理再试。'
+      : '出错了：'+msg;
     thinking.className='ai-msg thinking';
     aiHistory.pop();
   }
