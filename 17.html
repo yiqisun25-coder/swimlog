@@ -227,7 +227,13 @@ textarea{height:56px;resize:none}
   </div>
 
   <div class="section">
-    <div class="section-title"><i class="ti ti-list"></i>历史记录</div>
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span><i class="ti ti-list"></i>历史记录</span>
+      <span style="display:flex;gap:8px">
+        <button onclick="exportRecords()" style="background:none;border:none;color:#185fa5;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px;border:0.5px solid #b5d4f4"><i class="ti ti-download" style="margin-right:3px"></i>导出</button>
+        <label style="background:none;color:#185fa5;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px;border:0.5px solid #b5d4f4"><i class="ti ti-upload" style="margin-right:3px"></i>导入<input type="file" accept=".json" onchange="importRecords(event)" style="display:none"></label>
+      </span>
+    </div>
     <div class="record-list" id="recordList"><div class="loading"><i class="ti ti-loader" style="font-size:20px;display:block;margin:0 auto 8px"></i>加载中...</div></div>
   </div>
 </div>
@@ -286,8 +292,10 @@ async function loadRecords(){
     const res = await fetch(BASE+'/latest', {headers});
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}
     const data = await res.json();
-    const cloud=(Array.isArray(data)?data:[]).map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}));
+    const raw=Array.isArray(data)?data:(Array.isArray(data?.record)?data.record:[]);
+    const cloud=raw.map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}));
     cloud.sort((a,b)=>b.date.localeCompare(a.date));
+    // merge: keep records with newer local additions
     const cloudIds=new Set(cloud.map(r=>String(r.id)));
     const localOnly=(records||[]).filter(r=>!cloudIds.has(String(r.id)));
     records=[...localOnly,...cloud];
@@ -460,6 +468,7 @@ function renderChart(){
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}},y:{ticks:{font:{size:10}},beginAtZero:false}}}
     });
   } else {
+    // pace in seconds per 100m, display as mm:ss
     const paceData=sorted.map(r=>Math.round(Number(r.time)*60*100/Number(r.dist)));
     chart=new Chart(document.getElementById('trendChart'),{
       type:'line',
@@ -501,6 +510,7 @@ function savePool(name){
 }
 function renderPoolSelect(){
   const pools=getPools();
+  // also collect pools from existing records
   records.forEach(r=>{if(r.pool&&!pools.includes(r.pool))pools.push(r.pool);});
   const sel=document.getElementById('inPool');
   if(!sel)return;
@@ -557,11 +567,16 @@ function initAIPanel(){
 function buildSystemPrompt(){
   const sorted=[...records].sort((a,b)=>a.date.localeCompare(b.date));
   const summary=sorted.map(r=>{
-    const pace=Number(r.dist)&&Number(r.time)?(()=>{const s=Math.round(Number(r.time)*60*100/Number(r.dist));return `配速${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}/百米`;})():'';
-    return `${r.date} ${r.style}${r.pool?' @'+r.pool:''} 距离${r.dist||'-'}m 时长${r.time||'-'}min 卡路里${r.cal||'-'}kcal${pace?' '+pace:''}${r.note?' 感受:'+r.note:''}`;
+    const pace=Number(r.dist)&&Number(r.time)?`配速${Math.floor(Number(r.time)*60*100/Number(r.dist)/60)}:${String(Math.round(Number(r.time)*60*100/Number(r.dist)%60)).padStart(2,'0')}/百米`:'';
+    return `${r.date} ${r.style} 距离${r.dist||'-'}m 时长${r.time||'-'}min 卡路里${r.cal||'-'}kcal${pace?' '+pace:''}${r.note?' 感受:'+r.note:''}`;
   }).join('\n');
   const total={dist:records.reduce((s,r)=>s+Number(r.dist),0),time:records.reduce((s,r)=>s+Number(r.time),0),count:records.length};
-  return `你是一个专业的游泳训练顾问，分析用户的游泳数据并给出简洁实用的建议。请用中文回答，语气友好自然。\n\n用户游泳记录（共${total.count}次，总距离${total.dist}m，总时长${total.time}min）：\n${summary||'暂无记录'}\n\n请根据以上真实数据回答用户的问题。回答简洁，不超过200字。`;
+  return `你是一个专业的游泳训练顾问，分析用户的游泳数据并给出简洁实用的建议。请用中文回答，语气友好自然。
+
+用户游泳记录（共${total.count}次，总距离${total.dist}m，总时长${total.time}min）：
+${summary||'暂无记录'}
+
+请根据以上真实数据回答用户的问题。回答简洁，不超过200字。`;
 }
 
 function appendMsg(role,text){
@@ -628,18 +643,21 @@ function drawShareCard(){
   const W=600,H=780;
   canvas.width=W;canvas.height=H;
 
+  // background gradient
   const bg=ctx.createLinearGradient(0,0,W,H);
   bg.addColorStop(0,'#0c3d5c');
   bg.addColorStop(0.55,'#185fa5');
   bg.addColorStop(1,'#2196b8');
   ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
 
+  // decorative circles
   ctx.save();ctx.globalAlpha=0.07;
   ctx.fillStyle='#fff';
   ctx.beginPath();ctx.arc(W+80,H*0.18,220,0,Math.PI*2);ctx.fill();
   ctx.beginPath();ctx.arc(-60,H*0.75,180,0,Math.PI*2);ctx.fill();
   ctx.restore();
 
+  // wave at bottom
   ctx.save();ctx.globalAlpha=0.12;ctx.fillStyle='#fff';
   ctx.beginPath();
   ctx.moveTo(0,H-80);
@@ -652,16 +670,20 @@ function drawShareCard(){
   ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fill();
   ctx.restore();
 
+  // title
   ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font='500 22px -apple-system,sans-serif';
-  ctx.textAlign='center';ctx.fillText('🏄 游泳训练报告',W/2,62);
+  ctx.textAlign='center';ctx.fillText('🏊 游泳训练报告',W/2,62);
 
+  // date
   const d=new Date();
   ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='18px -apple-system,sans-serif';
   ctx.fillText(`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`,W/2,96);
 
+  // divider
   ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(60,118);ctx.lineTo(W-60,118);ctx.stroke();
 
+  // stats
   const total={dist:0,time:0,cal:0};
   records.forEach(r=>{total.dist+=Number(r.dist);total.time+=Number(r.time);total.cal+=Number(r.cal);});
   const paceRecs=records.filter(r=>Number(r.dist)&&Number(r.time));
@@ -682,16 +704,21 @@ function drawShareCard(){
   stats.forEach((s,i)=>{
     const col=i%cols,row=Math.floor(i/cols);
     const x=padX+col*(cardW+20),y=startY+row*(cardH+14);
+    // card bg
     ctx.save();ctx.globalAlpha=0.18;ctx.fillStyle='#fff';
     roundRect(ctx,x,y,cardW,cardH,12);ctx.fill();ctx.restore();
+    // value
     ctx.fillStyle='#fff';ctx.font=`bold ${s.val.length>5?30:38}px -apple-system,sans-serif`;
     ctx.textAlign='center';ctx.fillText(s.val,x+cardW/2,y+cardH*0.52);
+    // unit
     ctx.fillStyle='rgba(255,255,255,0.65)';ctx.font='16px -apple-system,sans-serif';
     ctx.fillText(s.unit,x+cardW/2,y+cardH*0.52+26);
+    // label
     ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='15px -apple-system,sans-serif';
     ctx.fillText(s.label,x+cardW/2,y+22);
   });
 
+  // recent 3 records
   const recY=startY+rows*(cardH+14)+16;
   ctx.fillStyle='rgba(255,255,255,0.18)';
   roundRect(ctx,50,recY,W-100,H-recY-90,12);ctx.fill();
@@ -705,7 +732,7 @@ function drawShareCard(){
     ctx.fillStyle='rgba(255,255,255,0.12)';
     roundRect(ctx,62,ry-20,W-124,40,8);ctx.fill();
     ctx.fillStyle='rgba(255,255,255,0.9)';ctx.font='500 15px -apple-system,sans-serif';
-    ctx.textAlign='left';ctx.fillText(r.date.slice(5)+' '+r.style+(r.pool?' @'+r.pool:''),76,ry+2);
+    ctx.textAlign='left';ctx.fillText(r.date.slice(5)+' '+r.style,76,ry+2);
     const dist=Number(r.dist),time=Number(r.time);
     let info=(dist?dist+'m ':'')+( time?time+'min':'');
     if(dist&&time){const s=Math.round(time*60*100/dist);info+=`  ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}/百米`;}
@@ -713,6 +740,7 @@ function drawShareCard(){
     ctx.textAlign='right';ctx.fillText(info,W-76,ry+2);
   });
 
+  // branding
   ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font='14px -apple-system,sans-serif';
   ctx.textAlign='center';ctx.fillText('🌊 游泳日记 · swimlog',W/2,H-28);
 }
@@ -721,6 +749,36 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
   ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
   ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+function exportRecords(){
+  const blob=new Blob([JSON.stringify(records,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='swimlog_'+fmtDate(new Date())+'.json';
+  a.click();
+}
+function importRecords(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async function(ev){
+    try{
+      const imported=JSON.parse(ev.target.result);
+      if(!Array.isArray(imported))throw new Error('格式错误');
+      const existing=new Set(records.map(r=>String(r.id)));
+      const newOnes=imported.filter(r=>!existing.has(String(r.id)));
+      if(!newOnes.length){alert('没有新记录需要导入');return;}
+      records=[...records,...newOnes.map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}))];
+      records.sort((a,b)=>b.date.localeCompare(a.date));
+      saveLocal();
+      render();
+      try{await saveToCloud();setSync('导入并同步成功');}catch(err){setSync('已导入到本地（云端同步失败）','error');}
+      alert(`成功导入 ${newOnes.length} 条记录`);
+    }catch(err){alert('导入失败：'+err.message);}
+  };
+  reader.readAsText(file);
+  e.target.value='';
 }
 
 initAIPanel();
