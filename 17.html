@@ -227,7 +227,13 @@ textarea{height:56px;resize:none}
   </div>
 
   <div class="section">
-    <div class="section-title"><i class="ti ti-list"></i>历史记录</div>
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span><i class="ti ti-list"></i>历史记录</span>
+      <span style="display:flex;gap:8px">
+        <button onclick="exportRecords()" style="background:none;border:none;color:#185fa5;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px;border:0.5px solid #b5d4f4"><i class="ti ti-download" style="margin-right:3px"></i>导出</button>
+        <label style="background:none;color:#185fa5;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px;border:0.5px solid #b5d4f4"><i class="ti ti-upload" style="margin-right:3px"></i>导入<input type="file" accept=".json" onchange="importRecords(event)" style="display:none"></label>
+      </span>
+    </div>
     <div class="record-list" id="recordList"><div class="loading"><i class="ti ti-loader" style="font-size:20px;display:block;margin:0 auto 8px"></i>加载中...</div></div>
   </div>
 </div>
@@ -286,7 +292,8 @@ async function loadRecords(){
     const res = await fetch(BASE+'/latest', {headers});
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`${res.status}: ${e.message||''}`);}
     const data = await res.json();
-    const cloud=(Array.isArray(data)?data:[]).map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}));
+    const raw=Array.isArray(data)?data:(Array.isArray(data?.record)?data.record:[]);
+    const cloud=raw.map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}));
     cloud.sort((a,b)=>b.date.localeCompare(a.date));
     // merge: keep records with newer local additions
     const cloudIds=new Set(cloud.map(r=>String(r.id)));
@@ -742,6 +749,36 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
   ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
   ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+function exportRecords(){
+  const blob=new Blob([JSON.stringify(records,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='swimlog_'+fmtDate(new Date())+'.json';
+  a.click();
+}
+function importRecords(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async function(ev){
+    try{
+      const imported=JSON.parse(ev.target.result);
+      if(!Array.isArray(imported))throw new Error('格式错误');
+      const existing=new Set(records.map(r=>String(r.id)));
+      const newOnes=imported.filter(r=>!existing.has(String(r.id)));
+      if(!newOnes.length){alert('没有新记录需要导入');return;}
+      records=[...records,...newOnes.map(r=>({...r,dist:Number(r.dist)||0,time:Number(r.time)||0,cal:Number(r.cal)||0}))];
+      records.sort((a,b)=>b.date.localeCompare(a.date));
+      saveLocal();
+      render();
+      try{await saveToCloud();setSync('导入并同步成功');}catch(err){setSync('已导入到本地（云端同步失败）','error');}
+      alert(`成功导入 ${newOnes.length} 条记录`);
+    }catch(err){alert('导入失败：'+err.message);}
+  };
+  reader.readAsText(file);
+  e.target.value='';
 }
 
 initAIPanel();
