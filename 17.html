@@ -165,6 +165,14 @@ textarea{height:56px;resize:none}
       <div class="field"><label>消耗卡路里</label><input type="number" id="inCal" min="0" placeholder="例如 300"></div>
     </div>
     <div class="form-row full">
+      <div class="field"><label>地点</label>
+        <div style="display:flex;gap:6px">
+          <select id="inPool" onchange="handlePoolSelect()" style="flex:1"></select>
+          <input type="text" id="inPoolNew" placeholder="输入新地点名称" style="display:none;flex:1">
+        </div>
+      </div>
+    </div>
+    <div class="form-row full">
       <div class="field"><label>心情 / 感受</label><textarea id="inNote" placeholder="今天的水感特别好，超越了上周的距离..."></textarea></div>
     </div>
     <button class="submit-btn" id="submitBtn" onclick="addRecord()"><i class="ti ti-device-floppy" style="margin-right:5px"></i>保存这次训练</button>
@@ -312,6 +320,10 @@ async function addRecord(){
   const cal=parseInt(document.getElementById('inCal').value)||0;
   const style=document.getElementById('inStyle').value;
   const note=document.getElementById('inNote').value.trim();
+  const poolSel=document.getElementById('inPool').value;
+  const poolNew=document.getElementById('inPoolNew').value.trim();
+  const pool=poolSel==='__new__'?(poolNew||''):poolSel==='__none__'?'':poolSel;
+  if(pool&&poolSel==='__new__'&&poolNew){savePool(poolNew);}
   if(!dateVal){alert('请选择日期');return;}
   if(!dist&&!time&&!cal){alert('请至少填写一项数据');return;}
 
@@ -325,7 +337,7 @@ async function addRecord(){
     cal:records.reduce((s,x)=>Math.max(s,Number(x.cal)),0)
   };
   const isNew={dist:dist>0&&dist>prev.dist,time:time>0&&time>prev.time,cal:cal>0&&cal>prev.cal};
-  const record={id:Date.now(),date:dateVal,dist,time,cal,style,note,isNew};
+  const record={id:Date.now(),date:dateVal,dist,time,cal,style,pool,note,isNew};
   records.unshift(record);
   records.sort((a,b)=>b.date.localeCompare(a.date));
 
@@ -340,7 +352,8 @@ async function addRecord(){
 
   btn.disabled=false;
   btn.innerHTML='<i class="ti ti-device-floppy" style="margin-right:5px"></i>保存这次训练';
-  ['inDist','inTime','inCal','inNote'].forEach(id=>document.getElementById(id).value='');
+  ['inDist','inTime','inCal','inNote','inPoolNew'].forEach(id=>document.getElementById(id).value='');
+  renderPoolSelect();
   document.getElementById('inDate').value=fmtDate(new Date());
   render();
 }
@@ -371,7 +384,7 @@ function changeMonth(dir){
   renderCalendar();
 }
 
-function render(){renderHeader();renderStats();renderCalendar();renderChart();renderBadges();renderList();}
+function render(){renderHeader();renderStats();renderCalendar();renderChart();renderBadges();renderList();renderPoolSelect();}
 
 function renderHeader(){
   document.getElementById('streakText').textContent=`连续 ${calcStreak(records)} 天`;
@@ -472,7 +485,7 @@ function renderList(){
     return `<div class="record-item">
       <div class="record-icon"><i class="ti ti-swim" style="color:#185fa5;font-size:16px"></i></div>
       <div class="record-main">
-        <div class="record-date">${r.date} · ${r.style}</div>
+        <div class="record-date">${r.date} · ${r.style}${r.pool?' · <i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+r.pool:''}</div>
         <div class="record-stats">${dist?dist+'m · ':''}${time?time+'min · ':''}${cal?cal+'kcal':''}${r.isNew&&(r.isNew.dist||r.isNew.time||r.isNew.cal)?'<span class="new-best">新记录</span>':''}</div>
         ${pace?`<div class="record-pace"><i class="ti ti-gauge" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>配速 ${pace}</div>`:''}
         ${r.note?`<div class="record-note">${r.note}</div>`:''}
@@ -480,6 +493,31 @@ function renderList(){
       <button class="record-del" onclick="deleteRecord(${r.id})"><i class="ti ti-trash"></i></button>
     </div>`;
   }).join('');
+}
+
+// Pool management
+function getPools(){try{return JSON.parse(localStorage.getItem('swimlog_pools')||'[]');}catch(e){return[];}}
+function savePool(name){
+  const pools=getPools();
+  if(!pools.includes(name)){pools.push(name);localStorage.setItem('swimlog_pools',JSON.stringify(pools));}
+}
+function renderPoolSelect(){
+  const pools=getPools();
+  // also collect pools from existing records
+  records.forEach(r=>{if(r.pool&&!pools.includes(r.pool))pools.push(r.pool);});
+  const sel=document.getElementById('inPool');
+  if(!sel)return;
+  sel.innerHTML=`<option value="__none__">不填写地点</option>`
+    +pools.map(p=>`<option value="${p}">${p}</option>`).join('')
+    +`<option value="__new__">➕ 添加新地点...</option>`;
+  handlePoolSelect();
+}
+function handlePoolSelect(){
+  const sel=document.getElementById('inPool');
+  const inp=document.getElementById('inPoolNew');
+  if(!sel||!inp)return;
+  inp.style.display=sel.value==='__new__'?'block':'none';
+  if(sel.value==='__new__')inp.focus();
 }
 
 // AI
@@ -708,6 +746,7 @@ function roundRect(ctx,x,y,w,h,r){
 
 initAIPanel();
 document.getElementById('inDate').value=fmtDate(new Date());
+renderPoolSelect();
 loadRecords();
 </script>
 </body>
