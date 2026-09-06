@@ -120,6 +120,34 @@ textarea{height:56px;resize:none}
 .share-box-btns button{flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;cursor:pointer}
 .share-dl{background:#185fa5;color:#fff}
 .share-close{background:#f3f4f6;color:#555}
+.tabs{display:flex;gap:4px;background:#fff;border:0.5px solid #e5e7eb;border-radius:12px;padding:4px;margin-bottom:.75rem;position:sticky;top:6px;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,0.04)}
+.tab-btn{flex:1;padding:7px 4px;border:none;background:none;border-radius:9px;font-size:11px;color:#8a949c;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;transition:background .15s}
+.tab-btn i{font-size:16px}
+.tab-btn:hover{background:#f4f8fc}
+.tab-btn.active{background:#185fa5;color:#fff}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.hm-wrap{overflow-x:auto;padding-bottom:4px}
+.hm-inner{display:inline-block;min-width:100%}
+.hm{display:grid;grid-template-rows:repeat(7,11px);grid-auto-flow:column;grid-auto-columns:11px;gap:2px}
+.hm-cell{width:11px;height:11px;border-radius:2px;background:#eef1f4}
+.hm-cell.l1{background:#cbe0f2}
+.hm-cell.l2{background:#8fbce2}
+.hm-cell.l3{background:#4a8fc9}
+.hm-cell.l4{background:#185fa5}
+.hm-cell.today{outline:1.5px solid #D85A30;outline-offset:1px}
+.hm-months{display:grid;grid-auto-flow:column;grid-auto-columns:11px;gap:2px;font-size:9px;color:#aaa;margin-bottom:4px;height:12px}
+.hm-legend{display:flex;align-items:center;gap:4px;font-size:10px;color:#bbb;margin-top:8px;justify-content:flex-end}
+.hm-legend .hm-cell{width:9px;height:9px}
+.kw-list{display:flex;flex-wrap:wrap;gap:6px}
+.kw{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;font-size:12px;cursor:pointer;border:0.5px solid transparent;font-family:inherit}
+.kw-n{font-weight:600;font-size:11px;opacity:.7}
+.kw.c0{background:#e6f1fb;color:#185fa5}
+.kw.c1{background:#e2f3f6;color:#12798f}
+.kw.c2{background:#fdefe9;color:#c2521f}
+.kw:hover{border-color:currentColor}
+.kw-legend{font-size:10px;color:#bbb;margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
+.kw-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px;vertical-align:0}
 </style>
 </head>
 <body>
@@ -157,7 +185,12 @@ textarea{height:56px;resize:none}
     </div>
   </div>
 
-  <button class="share-btn" onclick="openShareCard()"><i class="ti ti-share"></i>生成训练分享卡片</button>
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-record" onclick="switchTab('record')"><i class="ti ti-plus"></i>记录</button>
+    <button class="tab-btn" id="tab-data" onclick="switchTab('data')"><i class="ti ti-chart-histogram"></i>数据</button>
+    <button class="tab-btn" id="tab-history" onclick="switchTab('history')"><i class="ti ti-list"></i>历史</button>
+    <button class="tab-btn" id="tab-ai" onclick="switchTab('ai')"><i class="ti ti-robot"></i>顾问</button>
+  </div>
 
   <div id="shareModal" class="share-modal" onclick="if(event.target===this)closeShareCard()">
     <div class="share-box">
@@ -206,6 +239,9 @@ textarea{height:56px;resize:none}
     </div>
   </div>
 
+  <div class="tab-panel active" id="panel-record">
+  <button class="share-btn" style="margin:0 0 12px" onclick="openShareCard()"><i class="ti ti-share"></i>生成训练分享卡片</button>
+
   <div class="section">
     <div class="section-title"><i class="ti ti-plus"></i>记录训练（可补录过去日期）</div>
     <div class="form-row">
@@ -238,6 +274,13 @@ textarea{height:56px;resize:none}
   </div>
 
   <div class="section">
+    <div class="section-title"><i class="ti ti-medal"></i>成就徽章</div>
+    <div class="badge-row" id="badgeRow"></div>
+  </div>
+  </div>
+
+  <div class="tab-panel" id="panel-data">
+  <div class="section">
     <div class="section-title"><i class="ti ti-chart-line"></i>趋势图</div>
     <div class="chart-tabs">
       <button class="chart-tab active" id="tabDist" onclick="switchChart('dist')">距离</button>
@@ -247,21 +290,39 @@ textarea{height:56px;resize:none}
   </div>
 
   <div class="section">
-    <div class="section-title"><i class="ti ti-calendar"></i>打卡日历</div>
-    <div class="cal-nav">
-      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span id="calMonthLabel"></span>
-      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span><i class="ti ti-calendar"></i>全年打卡</span>
+      <span class="cal-nav" style="margin:0;gap:6px;display:flex;align-items:center">
+        <button onclick="changeYear(-1)"><i class="ti ti-chevron-left"></i></button>
+        <span id="hmYearLabel" style="min-width:52px;text-align:center"></span>
+        <button onclick="changeYear(1)"><i class="ti ti-chevron-right"></i></button>
+      </span>
     </div>
-    <div class="cal-weekdays"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
-    <div class="cal-grid" id="calGrid"></div>
+    <div class="hm-wrap">
+      <div class="hm-inner">
+        <div class="hm-months" id="hmMonths"></div>
+        <div class="hm" id="hmGrid"></div>
+      </div>
+    </div>
+    <div class="hm-legend">
+      <span id="hmSummary" style="margin-right:auto;color:#aaa"></span>
+      少<span class="hm-cell"></span><span class="hm-cell l1"></span><span class="hm-cell l2"></span><span class="hm-cell l3"></span><span class="hm-cell l4"></span>多
+    </div>
   </div>
 
   <div class="section">
-    <div class="section-title"><i class="ti ti-medal"></i>成就徽章</div>
-    <div class="badge-row" id="badgeRow"></div>
+    <div class="section-title"><i class="ti ti-tags"></i>笔记关键词</div>
+    <div class="kw-list" id="kwList"></div>
+    <div class="kw-legend">
+      <span><span class="kw-dot" style="background:#185fa5"></span>技术动作</span>
+      <span><span class="kw-dot" style="background:#12798f"></span>身体感受</span>
+      <span><span class="kw-dot" style="background:#c2521f"></span>状态体能</span>
+      <span style="color:#ccc">点关键词可查看相关记录</span>
+    </div>
+  </div>
   </div>
 
+  <div class="tab-panel" id="panel-ai">
   <div class="section">
     <div class="section-title"><i class="ti ti-robot"></i>训练顾问 <span style="font-size:10px;color:#aaa;font-weight:400" id="aiProviderLabel">· AI</span></div>
     <div id="aiKeySetup">
@@ -280,7 +341,9 @@ textarea{height:56px;resize:none}
       <div style="font-size:10px;color:#ccc;margin-top:6px;text-align:right"><span id="aiKeyHint"></span> · <a href="#" onclick="clearAIKey();return false" style="color:#ccc">重置 Key</a></div>
     </div>
   </div>
+  </div>
 
+  <div class="tab-panel" id="panel-history">
   <div class="section">
     <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
       <span><i class="ti ti-list"></i>历史记录</span>
@@ -297,6 +360,7 @@ textarea{height:56px;resize:none}
       <div class="fchips" id="filterChips"></div>
     </div>
     <div class="record-list" id="recordList"><div class="loading"><i class="ti ti-loader" style="font-size:20px;display:block;margin:0 auto 8px"></i>加载中...</div></div>
+  </div>
   </div>
 </div>
 
@@ -507,14 +571,8 @@ function calcStreak(recs){
   return streak;
 }
 
-function changeMonth(dir){
-  calMonth+=dir;
-  if(calMonth>11){calMonth=0;calYear++;}
-  if(calMonth<0){calMonth=11;calYear--;}
-  renderCalendar();
-}
 
-function render(){renderHeader();renderStats();renderCalendar();renderChart();renderBadges();renderFilterBar();renderList();renderPoolSelect();}
+function render(){renderHeader();renderStats();renderHeatmap();renderChart();renderBadges();renderKeywords();renderFilterBar();renderList();renderPoolSelect();}
 
 function renderHeader(){
   document.getElementById('streakText').textContent=`连续 ${calcStreak(records)} 天`;
@@ -548,19 +606,95 @@ function renderStats(){
   }
 }
 
-function renderCalendar(){
-  const monthNames=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-  document.getElementById('calMonthLabel').textContent=`${calYear}年 ${monthNames[calMonth]}`;
-  const grid=document.getElementById('calGrid');grid.innerHTML='';
-  const first=new Date(calYear,calMonth,1),daysInMonth=new Date(calYear,calMonth+1,0).getDate();
-  const doneDates=new Set(records.map(r=>r.date)),todayStr=fmtDate(new Date());
-  for(let i=0;i<first.getDay();i++){const d=document.createElement('div');d.className='cal-day';grid.appendChild(d);}
-  for(let d=1;d<=daysInMonth;d++){
-    const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const div=document.createElement('div');
-    div.className='cal-day'+(doneDates.has(ds)?' done':'')+(ds===todayStr?' today':'');
-    div.textContent=d;grid.appendChild(div);
+function changeYear(dir){calYear+=dir;renderHeatmap();}
+
+function renderHeatmap(){
+  const grid=document.getElementById('hmGrid'),months=document.getElementById('hmMonths');
+  if(!grid)return;
+  document.getElementById('hmYearLabel').textContent=calYear+'年';
+
+  // distance per day for this year
+  const byDay={};
+  records.forEach(r=>{
+    if((r.date||'').slice(0,4)!==String(calYear))return;
+    byDay[r.date]=(byDay[r.date]||0)+(Number(r.dist)||0);
+  });
+  const vals=Object.values(byDay).filter(v=>v>0).sort((a,b)=>a-b);
+  const q=p=>vals.length?vals[Math.min(vals.length-1,Math.floor(vals.length*p))]:0;
+  const t1=q(0.25),t2=q(0.5),t3=q(0.75);
+  const level=v=>!v?0:v<=t1?1:v<=t2?2:v<=t3?3:4;
+
+  // start on the Sunday on/before Jan 1
+  const start=new Date(calYear,0,1);
+  start.setDate(start.getDate()-start.getDay());
+  const end=new Date(calYear,11,31);
+  const todayStr=fmtDate(new Date());
+
+  grid.innerHTML='';months.innerHTML='';
+  let col=0,lastMonth=-1;
+  const monthCells=[];
+  for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+    const ds=fmtDate(d),inYear=d.getFullYear()===calYear;
+    const dist=byDay[ds]||0;
+    const cell=document.createElement('div');
+    cell.className='hm-cell'+(inYear?' l'+level(dist):'')+(ds===todayStr?' today':'');
+    if(!inYear)cell.style.visibility='hidden';
+    else{
+      cell.title=dist?`${ds}　${dist}m`:ds;
+      if(dist){cell.style.cursor='pointer';cell.onclick=()=>{switchTab('history');filterText=ds;document.getElementById('searchInput').value=ds;renderList();};}
+    }
+    grid.appendChild(cell);
+    // month label at the start of each column
+    if(d.getDay()===0){
+      const m=d.getMonth();
+      monthCells.push(inYear&&m!==lastMonth&&d.getDate()<=7?(lastMonth=m,(m+1)+'月'):'');
+      col++;
+    }
   }
+  months.innerHTML=monthCells.map(t=>`<span>${t}</span>`).join('');
+
+  const days=Object.keys(byDay).length;
+  const total=Object.values(byDay).reduce((s,v)=>s+v,0);
+  document.getElementById('hmSummary').textContent=days?`${calYear}年 ${days} 天下水 · ${total>=1000?(total/1000).toFixed(1)+'km':total+'m'}`:`${calYear}年还没有记录`;
+}
+
+const KEYWORDS=[
+  {c:0,words:['夹臀','划水','蹬腿','收腿','翻转','滑行','抱水','推水','打腿','转身','伸展','脚外翻','手臂','腿部','动作','姿势','划频','技术']},
+  {c:1,words:['下沉','浮力','水感','放松','僵硬','轻盈','换气','憋气','呼吸','节奏','稳']},
+  {c:2,words:['体力','核心','疲劳','撑不住','酸','累','人多','人少','速度','状态']},
+];
+
+function renderKeywords(){
+  const box=document.getElementById('kwList');
+  if(!box)return;
+  const hits=[];
+  KEYWORDS.forEach(g=>g.words.forEach(w=>{
+    const n=records.filter(r=>(r.note||'').includes(w)).length;
+    if(n>0)hits.push({w,n,c:g.c});
+  }));
+  hits.sort((a,b)=>b.n-a.n);
+  if(!hits.length){box.innerHTML='<div style="font-size:12px;color:#bbb">还没有笔记，写点训练感受就能在这里看到高频词</div>';return;}
+  box.innerHTML=hits.slice(0,24).map(h=>
+    `<button class="kw c${h.c}" onclick="searchKeyword('${esc(h.w)}')">${esc(h.w)}<span class="kw-n">${h.n}</span></button>`
+  ).join('');
+}
+
+function searchKeyword(w){
+  switchTab('history');
+  filterPool='__all__';
+  filterText=w;
+  document.getElementById('searchInput').value=w;
+  renderFilterBar();renderList();
+}
+
+function switchTab(name){
+  ['record','data','history','ai'].forEach(t=>{
+    document.getElementById('panel-'+t).classList.toggle('active',t===name);
+    document.getElementById('tab-'+t).classList.toggle('active',t===name);
+  });
+  localStorage.setItem('swimlog_tab',name);
+  if(name==='data'){renderChart();renderHeatmap();}
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function switchChart(mode){
@@ -971,6 +1105,8 @@ function importRecords(e){
 }
 
 initAIPanel();
+switchTab(localStorage.getItem('swimlog_tab')||'record');
+window.scrollTo(0,0);
 document.getElementById('inDate').value=fmtDate(new Date());
 renderPoolSelect();
 loadRecords();
