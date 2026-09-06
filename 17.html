@@ -80,7 +80,10 @@ textarea{height:56px;resize:none}
 .record-note{margin-top:3px;color:#7b848c}
 .record-note.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
 .record-note.clamp::after{content:'  展开';color:#185fa5}
-.record-btns{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.record-item{cursor:pointer}
+.record-btns{display:flex;flex-direction:column;gap:2px;flex-shrink:0;opacity:0;visibility:hidden;transition:opacity .15s}
+.record-item.active .record-btns{opacity:1;visibility:visible}
+@media(hover:hover){.record-item:hover .record-btns{opacity:1;visibility:visible}}
 .badge-row{display:flex;flex-wrap:wrap;gap:8px}
 .badge{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;border-radius:8px;border:0.5px solid #e5e7eb;background:#f9fafb;min-width:72px;opacity:.4}
 .badge.earned{opacity:1;background:#e6f1fb;border-color:#b5d4f4}
@@ -648,19 +651,25 @@ function recordHTML(r){
   const pace=dist&&time?(()=>{const s=Math.round(time*60*100/dist);return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;})():'';
   const note=r.note||'';
   const long=note.length>50;
-  return `<div class="record-item">
+  return `<div class="record-item" onclick="toggleActions(this)">
     <div class="record-icon"><i class="ti ti-swim" style="color:#185fa5;font-size:16px"></i></div>
     <div class="record-main">
       <div class="record-date">${esc(r.date)} · ${esc(r.style)}${r.pool?' · <i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+esc(r.pool):''}</div>
       <div class="record-stats">${dist?dist+'m · ':''}${time?time+'min · ':''}${cal?cal+'kcal':''}${r.isNew&&(r.isNew.dist||r.isNew.time||r.isNew.cal)?'<span class="new-best">新记录</span>':''}</div>
       ${pace?`<div class="record-pace"><i class="ti ti-gauge" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>配速 ${pace}</div>`:''}
-      ${note?`<div class="record-note${long?' clamp':''}"${long?' onclick="this.classList.toggle(\'clamp\')" title="点击展开/收起"':''}>${esc(note)}</div>`:''}
+      ${note?`<div class="record-note${long?' clamp':''}"${long?' onclick="event.stopPropagation();this.classList.toggle(\'clamp\')" title="点击展开/收起"':''}>${esc(note)}</div>`:''}
     </div>
     <div class="record-btns">
-      <button class="record-del record-edit" onclick="openEdit('${r.id}')"><i class="ti ti-pencil"></i></button>
-      <button class="record-del" onclick="deleteRecord('${r.id}')"><i class="ti ti-trash"></i></button>
+      <button class="record-del record-edit" onclick="event.stopPropagation();openEdit('${r.id}')"><i class="ti ti-pencil"></i></button>
+      <button class="record-del" onclick="event.stopPropagation();deleteRecord('${r.id}')"><i class="ti ti-trash"></i></button>
     </div>
   </div>`;
+}
+
+function toggleActions(el){
+  const on=el.classList.contains('active');
+  document.querySelectorAll('.record-item.active').forEach(x=>x.classList.remove('active'));
+  if(!on)el.classList.add('active');
 }
 
 function renderList(){
