@@ -306,7 +306,7 @@ async function loadRecords(){
     render();
   }catch(e){
     console.error('sync error:',e);
-    setSync('云端同步失败（本地数据已保留）','error');
+    setSync('云端同步失败：'+(e.message||e)+'（本地数据已保留）','error');
     if(!local||!local.length)render();
   }
 }
