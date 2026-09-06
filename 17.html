@@ -61,6 +61,7 @@ textarea{height:56px;resize:none}
 .record-pace{font-size:11px;color:#185fa5;margin-top:1px}
 .record-del{color:#ccc;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px}
 .record-del:hover{color:#e24b4a}
+.record-edit:hover{color:#185fa5}
 .badge-row{display:flex;flex-wrap:wrap;gap:8px}
 .badge{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;border-radius:8px;border:0.5px solid #e5e7eb;background:#f9fafb;min-width:72px;opacity:.4}
 .badge.earned{opacity:1;background:#e6f1fb;border-color:#b5d4f4}
@@ -144,6 +145,42 @@ textarea{height:56px;resize:none}
         <button class="share-close" onclick="closeShareCard()">关闭</button>
       </div>
       <div style="font-size:11px;color:#bbb;margin-top:6px">长按图片也可以保存到相册</div>
+    </div>
+  </div>
+
+  <div id="editModal" class="share-modal" onclick="if(event.target===this)closeEdit()">
+    <div class="share-box" style="max-width:420px;text-align:left">
+      <div style="font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:12px"><i class="ti ti-pencil" style="margin-right:5px"></i>编辑记录</div>
+      <div class="form-row">
+        <div class="field"><label>日期</label><input type="date" id="edDate"></div>
+        <div class="field"><label>泳姿</label>
+          <select id="edStyle">
+            <option>自由泳</option><option>蛙泳</option><option>蝶泳</option><option>仰泳</option><option>混合</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>距离（米）</label><input type="number" id="edDist"></div>
+        <div class="field"><label>时长（分钟）</label><input type="number" id="edTime"></div>
+      </div>
+      <div class="form-row full">
+        <div class="field"><label>消耗卡路里</label><input type="number" id="edCal"></div>
+      </div>
+      <div class="form-row full">
+        <div class="field"><label>地点</label>
+          <div style="display:flex;gap:6px">
+            <select id="edPool" onchange="handleEdPoolSelect()" style="flex:1"></select>
+            <input type="text" id="edPoolNew" placeholder="输入新地点名称" style="display:none;flex:1">
+          </div>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="field"><label>心情 / 感受</label><textarea id="edNote"></textarea></div>
+      </div>
+      <div class="share-box-btns">
+        <button class="share-dl" onclick="saveEdit()"><i class="ti ti-device-floppy" style="margin-right:4px"></i>保存修改</button>
+        <button class="share-close" onclick="closeEdit()">取消</button>
+      </div>
     </div>
   </div>
 
@@ -376,6 +413,67 @@ async function deleteRecord(id){
   }catch(e){console.error('delete sync error:',e);setSync('云端同步失败（本地已保存）','error');}
 }
 
+let editingId=null;
+function renderEdPoolSelect(current){
+  const pools=getPools();
+  records.forEach(r=>{if(r.pool&&!pools.includes(r.pool))pools.push(r.pool);});
+  if(current&&!pools.includes(current))pools.push(current);
+  const sel=document.getElementById('edPool');
+  sel.innerHTML=`<option value="__none__">不填写地点</option>`
+    +pools.map(p=>`<option value="${p}">${p}</option>`).join('')
+    +`<option value="__new__">➕ 添加新地点...</option>`;
+  sel.value=current||'__none__';
+  handleEdPoolSelect();
+}
+function handleEdPoolSelect(){
+  const sel=document.getElementById('edPool');
+  const inp=document.getElementById('edPoolNew');
+  inp.style.display=sel.value==='__new__'?'block':'none';
+  if(sel.value==='__new__')inp.focus();
+}
+function openEdit(id){
+  const r=records.find(x=>String(x.id)===String(id));
+  if(!r)return;
+  editingId=r.id;
+  document.getElementById('edDate').value=r.date||'';
+  document.getElementById('edStyle').value=r.style||'自由泳';
+  document.getElementById('edDist').value=Number(r.dist)||'';
+  document.getElementById('edTime').value=Number(r.time)||'';
+  document.getElementById('edCal').value=Number(r.cal)||'';
+  document.getElementById('edNote').value=r.note||'';
+  document.getElementById('edPoolNew').value='';
+  renderEdPoolSelect(r.pool||'');
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEdit(){editingId=null;document.getElementById('editModal').classList.remove('open');}
+async function saveEdit(){
+  if(editingId===null)return;
+  const i=records.findIndex(x=>String(x.id)===String(editingId));
+  if(i<0){closeEdit();return;}
+  const dateVal=document.getElementById('edDate').value;
+  if(!dateVal){alert('请选择日期');return;}
+  const dist=parseInt(document.getElementById('edDist').value)||0;
+  const time=parseInt(document.getElementById('edTime').value)||0;
+  const cal=parseInt(document.getElementById('edCal').value)||0;
+  if(!dist&&!time&&!cal){alert('请至少填写一项数据');return;}
+  const poolSel=document.getElementById('edPool').value;
+  const poolNew=document.getElementById('edPoolNew').value.trim();
+  const pool=poolSel==='__new__'?poolNew:poolSel==='__none__'?'':poolSel;
+  if(poolSel==='__new__'&&poolNew)savePool(poolNew);
+
+  records[i]={...records[i],date:dateVal,dist,time,cal,
+    style:document.getElementById('edStyle').value,
+    pool,note:document.getElementById('edNote').value.trim()};
+  records.sort((a,b)=>b.date.localeCompare(a.date));
+  saveLocal();
+  closeEdit();
+  render();
+  try{
+    await saveToCloud();
+    setSync('已同步 · '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){console.error('edit sync error:',e);setSync('云端同步失败（本地已保存）','error');}
+}
+
 function calcStreak(recs){
   if(!recs.length)return 0;
   const dates=[...new Set(recs.map(r=>r.date))].sort((a,b)=>b.localeCompare(a));
@@ -497,7 +595,8 @@ function renderList(){
         ${pace?`<div class="record-pace"><i class="ti ti-gauge" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>配速 ${pace}</div>`:''}
         ${r.note?`<div class="record-note">${r.note}</div>`:''}
       </div>
-      <button class="record-del" onclick="deleteRecord(${r.id})"><i class="ti ti-trash"></i></button>
+      <button class="record-del record-edit" onclick="openEdit('${r.id}')"><i class="ti ti-pencil"></i></button>
+      <button class="record-del" onclick="deleteRecord('${r.id}')"><i class="ti ti-trash"></i></button>
     </div>`;
   }).join('');
 }
