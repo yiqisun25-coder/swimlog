@@ -62,6 +62,25 @@ textarea{height:56px;resize:none}
 .record-del{color:#ccc;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px}
 .record-del:hover{color:#e24b4a}
 .record-edit:hover{color:#185fa5}
+.list-tools{margin-bottom:10px}
+.search-box{position:relative;margin-bottom:8px}
+.search-box i{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:#bbb;font-size:14px}
+.search-box input{padding-left:28px;font-size:13px}
+.fchips{display:flex;flex-wrap:wrap;gap:6px}
+.fchip{font-size:11px;padding:3px 10px;border-radius:20px;border:0.5px solid #d1d5db;background:#f9fafb;color:#666;cursor:pointer;white-space:nowrap}
+.fchip:hover{background:#f0f6fb;border-color:#b5d4f4}
+.fchip.active{background:#185fa5;color:#fff;border-color:#185fa5}
+.month-head{display:flex;align-items:baseline;justify-content:space-between;padding:10px 2px 4px;border-bottom:0.5px solid #eef1f4;margin-top:6px}
+.month-head:first-child{margin-top:0}
+.month-title{font-size:13px;font-weight:600;color:#1a1a1a}
+.month-sum{font-size:11px;color:#aaa}
+.record-item{align-items:flex-start}
+.record-date{font-size:11px;color:#9aa3ab;margin-bottom:1px}
+.record-stats{font-size:14px}
+.record-note{margin-top:3px;color:#7b848c}
+.record-note.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.record-note.clamp::after{content:'  展开';color:#185fa5}
+.record-btns{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
 .badge-row{display:flex;flex-wrap:wrap;gap:8px}
 .badge{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;border-radius:8px;border:0.5px solid #e5e7eb;background:#f9fafb;min-width:72px;opacity:.4}
 .badge.earned{opacity:1;background:#e6f1fb;border-color:#b5d4f4}
@@ -270,6 +289,13 @@ textarea{height:56px;resize:none}
         <button onclick="exportRecords()" style="background:none;border:none;color:#185fa5;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px;border:0.5px solid #b5d4f4"><i class="ti ti-download" style="margin-right:3px"></i>导出</button>
         <label style="background:none;color:#185fa5;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px;border:0.5px solid #b5d4f4"><i class="ti ti-upload" style="margin-right:3px"></i>导入<input type="file" accept=".json" onchange="importRecords(event)" style="display:none"></label>
       </span>
+    </div>
+    <div class="list-tools">
+      <div class="search-box">
+        <i class="ti ti-search"></i>
+        <input type="text" id="searchInput" placeholder="搜索日期、地点、感受..." oninput="onSearch(this.value)">
+      </div>
+      <div class="fchips" id="filterChips"></div>
     </div>
     <div class="record-list" id="recordList"><div class="loading"><i class="ti ti-loader" style="font-size:20px;display:block;margin:0 auto 8px"></i>加载中...</div></div>
   </div>
@@ -489,7 +515,7 @@ function changeMonth(dir){
   renderCalendar();
 }
 
-function render(){renderHeader();renderStats();renderCalendar();renderChart();renderBadges();renderList();renderPoolSelect();}
+function render(){renderHeader();renderStats();renderCalendar();renderChart();renderBadges();renderFilterBar();renderList();renderPoolSelect();}
 
 function renderHeader(){
   document.getElementById('streakText').textContent=`连续 ${calcStreak(records)} 天`;
@@ -581,23 +607,79 @@ function renderBadges(){
     <div class="badge${b.check(records)?' earned':''}"><i class="ti ${b.icon}"></i><span>${b.label}</span></div>`).join('');
 }
 
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+let filterPool='__all__';
+let filterText='';
+let chipVals=[];
+
+function setFilterPool(i){filterPool=chipVals[i];renderFilterBar();renderList();}
+function onSearch(v){filterText=v;renderList();}
+
+function renderFilterBar(){
+  const box=document.getElementById('filterChips');
+  if(!box)return;
+  const pools=[...new Set(records.map(r=>r.pool).filter(Boolean))];
+  const chips=[{v:'__all__',label:'全部'}]
+    .concat(pools.map(p=>({v:p,label:p})));
+  if(records.some(r=>!r.pool))chips.push({v:'__nopool__',label:'未填地点'});
+  if(chips.length<=1){box.innerHTML='';chipVals=[];return;}
+  chipVals=chips.map(c=>c.v);
+  box.innerHTML=chips.map((c,i)=>{
+    const n=c.v==='__all__'?records.length
+      :c.v==='__nopool__'?records.filter(r=>!r.pool).length
+      :records.filter(r=>r.pool===c.v).length;
+    return `<button class="fchip${filterPool===c.v?' active':''}" onclick="setFilterPool(${i})">${esc(c.label)} ${n}</button>`;
+  }).join('');
+}
+
+function getFiltered(){
+  const q=filterText.trim().toLowerCase();
+  return records.filter(r=>{
+    if(filterPool==='__nopool__'){if(r.pool)return false;}
+    else if(filterPool!=='__all__'&&r.pool!==filterPool)return false;
+    if(!q)return true;
+    return [r.date,r.style,r.pool,r.note].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+}
+
+function recordHTML(r){
+  const dist=Number(r.dist),time=Number(r.time),cal=Number(r.cal);
+  const pace=dist&&time?(()=>{const s=Math.round(time*60*100/dist);return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;})():'';
+  const note=r.note||'';
+  const long=note.length>50;
+  return `<div class="record-item">
+    <div class="record-icon"><i class="ti ti-swim" style="color:#185fa5;font-size:16px"></i></div>
+    <div class="record-main">
+      <div class="record-date">${esc(r.date)} · ${esc(r.style)}${r.pool?' · <i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+esc(r.pool):''}</div>
+      <div class="record-stats">${dist?dist+'m · ':''}${time?time+'min · ':''}${cal?cal+'kcal':''}${r.isNew&&(r.isNew.dist||r.isNew.time||r.isNew.cal)?'<span class="new-best">新记录</span>':''}</div>
+      ${pace?`<div class="record-pace"><i class="ti ti-gauge" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>配速 ${pace}</div>`:''}
+      ${note?`<div class="record-note${long?' clamp':''}"${long?' onclick="this.classList.toggle(\'clamp\')" title="点击展开/收起"':''}>${esc(note)}</div>`:''}
+    </div>
+    <div class="record-btns">
+      <button class="record-del record-edit" onclick="openEdit('${r.id}')"><i class="ti ti-pencil"></i></button>
+      <button class="record-del" onclick="deleteRecord('${r.id}')"><i class="ti ti-trash"></i></button>
+    </div>
+  </div>`;
+}
+
 function renderList(){
   const list=document.getElementById('recordList');
   if(!records.length){list.innerHTML='<div class="empty-state"><i class="ti ti-swim" style="font-size:24px;display:block;margin:0 auto 8px"></i>还没有记录，去游泳吧！</div>';return;}
-  list.innerHTML=records.map(r=>{
-    const dist=Number(r.dist),time=Number(r.time),cal=Number(r.cal);
-    const pace=dist&&time?(()=>{const s=Math.round(time*60*100/dist);return `${Math.floor(s/60).toString().padStart(2,'0')}:${String(s%60).padStart(2,'0')} /百米`;})():'';
-    return `<div class="record-item">
-      <div class="record-icon"><i class="ti ti-swim" style="color:#185fa5;font-size:16px"></i></div>
-      <div class="record-main">
-        <div class="record-date">${r.date} · ${r.style}${r.pool?' · <i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+r.pool:''}</div>
-        <div class="record-stats">${dist?dist+'m · ':''}${time?time+'min · ':''}${cal?cal+'kcal':''}${r.isNew&&(r.isNew.dist||r.isNew.time||r.isNew.cal)?'<span class="new-best">新记录</span>':''}</div>
-        ${pace?`<div class="record-pace"><i class="ti ti-gauge" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>配速 ${pace}</div>`:''}
-        ${r.note?`<div class="record-note">${r.note}</div>`:''}
-      </div>
-      <button class="record-del record-edit" onclick="openEdit('${r.id}')"><i class="ti ti-pencil"></i></button>
-      <button class="record-del" onclick="deleteRecord('${r.id}')"><i class="ti ti-trash"></i></button>
-    </div>`;
+  const shown=getFiltered();
+  if(!shown.length){list.innerHTML='<div class="empty-state"><i class="ti ti-search-off" style="font-size:24px;display:block;margin:0 auto 8px"></i>没有匹配的记录</div>';return;}
+
+  const groups={};
+  shown.forEach(r=>{const k=(r.date||'').slice(0,7);(groups[k]=groups[k]||[]).push(r);});
+  list.innerHTML=Object.keys(groups).sort((a,b)=>b.localeCompare(a)).map(k=>{
+    const rs=groups[k];
+    const d=rs.reduce((s,x)=>s+(Number(x.dist)||0),0);
+    const t=rs.reduce((s,x)=>s+(Number(x.time)||0),0);
+    const [y,m]=k.split('-');
+    return `<div class="month-head">
+      <span class="month-title">${y}年${Number(m)}月</span>
+      <span class="month-sum">${rs.length}次${d?' · '+(d>=1000?(d/1000).toFixed(1)+'km':d+'m'):''}${t?' · '+t+'min':''}</span>
+    </div>`+rs.map(recordHTML).join('');
   }).join('');
 }
 
