@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>游泳日记</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0c3d5c">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="游泳日记">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -153,6 +159,23 @@ textarea{height:56px;resize:none}
 .mood-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:0.5px solid transparent;font-family:inherit;font-weight:500}
 .mood-chip:hover{border-color:currentColor}
 .mood-chip .kw-n{font-weight:600;font-size:11px;opacity:.7}
+.arc{border:0.5px solid #eef1f4;border-radius:10px;margin-bottom:8px;overflow:hidden}
+.arc-head{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;background:#fbfcfd}
+.arc-head:hover{background:#f5f9fc}
+.arc-chev{color:#ccc;font-size:14px;transition:transform .15s;flex-shrink:0}
+.arc.open .arc-chev{transform:rotate(90deg)}
+.arc-name{font-size:13px;font-weight:600;color:#1a1a1a}
+.arc-trend{font-size:10px;padding:1px 8px;border-radius:10px;white-space:nowrap}
+.arc-count{font-size:11px;color:#bbb;margin-left:auto;white-space:nowrap}
+.arc-body{display:none;padding:2px 12px 8px;border-top:0.5px solid #eef1f4}
+.arc.open .arc-body{display:block}
+.arc-item{display:flex;gap:9px;padding:8px 0;border-bottom:0.5px dashed #f0f2f4}
+.arc-item:last-child{border-bottom:none}
+.arc-date{font-size:10px;color:#aaa;white-space:nowrap;min-width:60px;padding-top:2px}
+.arc-frag{font-size:12px;color:#5d6670;line-height:1.65}
+.arc-spark{display:flex;gap:2px;align-items:flex-end;height:14px;flex-shrink:0}
+.arc-spark i{width:4px;border-radius:1px;background:#e3e8ed;display:block}
+.arc-spark i.on{background:#185fa5}
 </style>
 </head>
 <body>
@@ -193,6 +216,7 @@ textarea{height:56px;resize:none}
   <div class="tabs">
     <button class="tab-btn active" id="tab-record" onclick="switchTab('record')"><i class="ti ti-plus"></i>记录</button>
     <button class="tab-btn" id="tab-data" onclick="switchTab('data')"><i class="ti ti-chart-histogram"></i>数据</button>
+    <button class="tab-btn" id="tab-archive" onclick="switchTab('archive')"><i class="ti ti-folders"></i>档案</button>
     <button class="tab-btn" id="tab-history" onclick="switchTab('history')"><i class="ti ti-list"></i>历史</button>
     <button class="tab-btn" id="tab-ai" onclick="switchTab('ai')"><i class="ti ti-robot"></i>顾问</button>
   </div>
@@ -330,6 +354,16 @@ textarea{height:56px;resize:none}
       <span><span class="kw-dot" style="background:#c2521f"></span>状态体能</span>
       <span style="color:#ccc">点关键词可查看相关记录</span>
     </div>
+  </div>
+  </div>
+
+  <div class="tab-panel" id="panel-archive">
+  <div class="section">
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span><i class="ti ti-folders"></i>技术档案</span>
+      <span style="font-size:10px;color:#bbb;font-weight:400">按问题归档 · 出现 2 次以上</span>
+    </div>
+    <div id="archiveList"></div>
   </div>
   </div>
 
@@ -583,7 +617,7 @@ function calcStreak(recs){
 }
 
 
-function render(){renderHeader();renderStats();renderHeatmap();renderChart();renderBadges();renderMoods();renderKeywords();renderFilterBar();renderList();renderPoolSelect();}
+function render(){renderHeader();renderStats();renderHeatmap();renderChart();renderBadges();renderMoods();renderKeywords();renderArchive();renderFilterBar();renderList();renderPoolSelect();}
 
 function renderHeader(){
   document.getElementById('streakText').textContent=`连续 ${calcStreak(records)} 天`;
@@ -722,6 +756,67 @@ function renderMoods(){
   ).join('');
 }
 
+// --- Technique archive: the same notes, grouped by problem instead of by date ---
+
+function fragmentsFor(note,w){
+  return String(note||'').split(/[。！？\n·•；;，,、]/)
+    .map(s=>s.trim()).filter(s=>s&&s.includes(w));
+}
+
+function buildArchive(){
+  const items=[];
+  KEYWORDS.forEach(g=>g.words.forEach(w=>{
+    const hits=records.filter(r=>(r.note||'').includes(w))
+      .sort((a,b)=>b.date.localeCompare(a.date))
+      .map(r=>({date:r.date,pool:r.pool||'',frags:fragmentsFor(r.note,w)}));
+    if(hits.length>=2)items.push({w,c:g.c,hits});
+  }));
+  return items.sort((a,b)=>b.hits.length-a.hits.length||a.w.localeCompare(b.w));
+}
+
+// Split the training history in half by date; compare mentions on each side.
+function trendOf(hits,dates){
+  if(dates.length<4)return null;
+  const mid=dates[Math.floor(dates.length/2)];
+  const recent=hits.filter(h=>h.date>=mid).length, early=hits.length-recent;
+  if(recent===0)return{t:'近期未再提及',bg:'#e2f3f6',fg:'#12798f'};
+  if(early===0)return{t:'近期才出现',bg:'#fdefe9',fg:'#c2521f'};
+  if(recent>early)return{t:'近期更频繁',bg:'#fdefe9',fg:'#c2521f'};
+  if(recent<early)return{t:'出现变少',bg:'#e2f3f6',fg:'#12798f'};
+  return{t:'反复出现',bg:'#fbf3dd',fg:'#8a6d1f'};
+}
+
+function renderArchive(){
+  const box=document.getElementById('archiveList');
+  if(!box)return;
+  const items=buildArchive();
+  if(!items.length){
+    box.innerHTML='<div class="empty-state"><i class="ti ti-folders" style="font-size:24px;display:block;margin:0 auto 8px"></i>还没有反复出现的技术点<br><span style="font-size:11px">在笔记里多写几次训练感受，这里会把同一个问题串起来</span></div>';
+    return;
+  }
+  const dates=[...new Set(records.map(r=>r.date))].sort();
+  box.innerHTML=items.map((it,i)=>{
+    const tr=trendOf(it.hits,dates);
+    const marked=new Set(it.hits.map(h=>h.date));
+    const spark=dates.map(d=>`<i class="${marked.has(d)?'on':''}" style="height:${marked.has(d)?12:5}px"></i>`).join('');
+    return `<div class="arc" id="arc-${i}">
+      <div class="arc-head" onclick="document.getElementById('arc-${i}').classList.toggle('open')">
+        <i class="ti ti-chevron-right arc-chev"></i>
+        <span class="arc-name">${esc(it.w)}</span>
+        ${tr?`<span class="arc-trend" style="background:${tr.bg};color:${tr.fg}">${tr.t}</span>`:''}
+        <span class="arc-spark">${spark}</span>
+        <span class="arc-count">${it.hits.length} 次</span>
+      </div>
+      <div class="arc-body">
+        ${it.hits.map(h=>`<div class="arc-item">
+          <span class="arc-date">${esc(h.date.slice(5))}${h.pool?'<br><span style="color:#ccc">'+esc(h.pool)+'</span>':''}</span>
+          <span class="arc-frag">${h.frags.length?h.frags.map(esc).join(' … '):'<span style="color:#bbb">（提到过，但没抓到完整句子）</span>'}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function searchKeyword(w){
   switchTab('history');
   filterPool='__all__';
@@ -731,7 +826,7 @@ function searchKeyword(w){
 }
 
 function switchTab(name){
-  ['record','data','history','ai'].forEach(t=>{
+  ['record','data','archive','history','ai'].forEach(t=>{
     document.getElementById('panel-'+t).classList.toggle('active',t===name);
     document.getElementById('tab-'+t).classList.toggle('active',t===name);
   });
@@ -1150,6 +1245,10 @@ function importRecords(e){
   };
   reader.readAsText(file);
   e.target.value='';
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw:',e)));
 }
 
 initAIPanel();
