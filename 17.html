@@ -176,6 +176,13 @@ textarea{height:56px;resize:none}
 .arc-spark{display:flex;gap:2px;align-items:flex-end;height:14px;flex-shrink:0}
 .arc-spark i{width:4px;border-radius:1px;background:#e3e8ed;display:block}
 .arc-spark i.on{background:#185fa5}
+.arc-grp{margin-bottom:16px}
+.arc-grp:last-child{margin-bottom:0}
+.arc-grp-head{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#185fa5;padding:0 2px 7px;border-bottom:0.5px solid #eef1f4;margin-bottom:8px}
+.arc-grp-head i{font-size:14px}
+.arc-grp-n{margin-left:auto;font-size:10px;color:#bbb;font-weight:400}
+.arc-grp.empty .arc-grp-head{color:#c8ced4}
+.arc-empty{font-size:11px;color:#c8ced4;padding:1px 2px 4px}
 </style>
 </head>
 <body>
@@ -361,7 +368,7 @@ textarea{height:56px;resize:none}
   <div class="section">
     <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
       <span><i class="ti ti-folders"></i>技术档案</span>
-      <span style="font-size:10px;color:#bbb;font-weight:400">按问题归档 · 出现 2 次以上</span>
+      <span style="font-size:10px;color:#bbb;font-weight:400">按部位归档 · 出现 2 次以上</span>
     </div>
     <div id="archiveList"></div>
   </div>
@@ -758,20 +765,53 @@ function renderMoods(){
 
 // --- Technique archive: the same notes, grouped by problem instead of by date ---
 
-function fragmentsFor(note,w){
+function fragmentsFor(note,forms){
   return String(note||'').split(/[。！？\n·•；;，,、]/)
-    .map(s=>s.trim()).filter(s=>s&&s.includes(w));
+    .map(s=>s.trim()).filter(s=>s&&forms.some(w=>s.includes(w)));
 }
 
-function buildArchive(){
-  const items=[];
-  KEYWORDS.forEach(g=>g.words.forEach(w=>{
-    const hits=records.filter(r=>(r.note||'').includes(w))
-      .sort((a,b)=>b.date.localeCompare(a.date))
-      .map(r=>({date:r.date,pool:r.pool||'',frags:fragmentsFor(r.note,w)}));
-    if(hits.length>=2)items.push({w,c:g.c,hits});
-  }));
-  return items.sort((a,b)=>b.hits.length-a.hits.length||a.w.localeCompare(b.w));
+// Technique only — body mechanics, not environment, mood or effort.
+// Each point lists its surface forms; synonyms count as one point.
+const TECH=[
+  {g:'手',icon:'ti-hand-finger',points:[
+    {n:'划水',    w:['划水','抱水','推水','勾水','划手']},
+    {n:'手臂姿势',w:['手臂','夹耳','前伸','伸直']},
+  ]},
+  {g:'腿',icon:'ti-run',points:[
+    {n:'蹬腿',    w:['蹬腿','蹬夹','蹬水','蹬出']},
+    {n:'收腿',    w:['收腿']},
+    {n:'翻脚',    w:['翻脚','脚外翻','外翻','翻转']},
+    {n:'夹腿打腿',w:['夹腿','打腿']},
+  ]},
+  {g:'手脚配合',icon:'ti-arrows-shuffle',points:[
+    {n:'手脚配合',w:['手脚配合','手脚联动','配合','联动','协调','一划一蹬','时机']},
+  ]},
+  {g:'呼吸',icon:'ti-lungs',points:[
+    {n:'换气',    w:['换气','吸气','呼气','呼吸']},
+    {n:'憋气',    w:['憋气']},
+    {n:'抬头低头',w:['抬头','低头']},
+  ]},
+  {g:'身体姿态',icon:'ti-body-scan',points:[
+    {n:'收腹夹臀',w:['夹臀','收腹','托住腰']},
+    {n:'下沉上浮',w:['下沉','上浮','浮力','浮起','沉下']},
+    {n:'滑行',    w:['滑行','流线']},
+    {n:'核心',    w:['核心']},
+    {n:'重心',    w:['重心','打挺']},
+  ]},
+  {g:'节奏效率',icon:'ti-wave-sine',points:[
+    {n:'划数划频',w:['划数','划频','少划多滑','圈速']},
+    {n:'节奏',    w:['节奏']},
+    {n:'效率',    w:['效率']},
+  ]},
+  {g:'转身',icon:'ti-rotate-2',points:[
+    {n:'转身',    w:['转身','蹬壁','触壁','折返']},
+  ]},
+];
+
+function hitsFor(forms){
+  return records.filter(r=>forms.some(w=>(r.note||'').includes(w)))
+    .sort((a,b)=>b.date.localeCompare(a.date))
+    .map(r=>({date:r.date,pool:r.pool||'',frags:fragmentsFor(r.note,forms)}));
 }
 
 // Split the training history in half by date; compare mentions on each side.
@@ -789,30 +829,40 @@ function trendOf(hits,dates){
 function renderArchive(){
   const box=document.getElementById('archiveList');
   if(!box)return;
-  const items=buildArchive();
-  if(!items.length){
-    box.innerHTML='<div class="empty-state"><i class="ti ti-folders" style="font-size:24px;display:block;margin:0 auto 8px"></i>还没有反复出现的技术点<br><span style="font-size:11px">在笔记里多写几次训练感受，这里会把同一个问题串起来</span></div>';
+  if(!records.some(r=>(r.note||'').trim())){
+    box.innerHTML='<div class="empty-state"><i class="ti ti-folders" style="font-size:24px;display:block;margin:0 auto 8px"></i>还没有训练笔记<br><span style="font-size:11px">写下技术感受，这里会按部位把同一个问题串起来</span></div>';
     return;
   }
   const dates=[...new Set(records.map(r=>r.date))].sort();
-  box.innerHTML=items.map((it,i)=>{
-    const tr=trendOf(it.hits,dates);
-    const marked=new Set(it.hits.map(h=>h.date));
-    const spark=dates.map(d=>`<i class="${marked.has(d)?'on':''}" style="height:${marked.has(d)?12:5}px"></i>`).join('');
-    return `<div class="arc" id="arc-${i}">
-      <div class="arc-head" onclick="document.getElementById('arc-${i}').classList.toggle('open')">
-        <i class="ti ti-chevron-right arc-chev"></i>
-        <span class="arc-name">${esc(it.w)}</span>
-        ${tr?`<span class="arc-trend" style="background:${tr.bg};color:${tr.fg}">${tr.t}</span>`:''}
-        <span class="arc-spark">${spark}</span>
-        <span class="arc-count">${it.hits.length} 次</span>
-      </div>
-      <div class="arc-body">
-        ${it.hits.map(h=>`<div class="arc-item">
-          <span class="arc-date">${esc(h.date.slice(5))}${h.pool?'<br><span style="color:#ccc">'+esc(h.pool)+'</span>':''}</span>
-          <span class="arc-frag">${h.frags.length?h.frags.map(esc).join(' … '):'<span style="color:#bbb">（提到过，但没抓到完整句子）</span>'}</span>
-        </div>`).join('')}
-      </div>
+  let n=0;
+  box.innerHTML=TECH.map(g=>{
+    const items=g.points.map(p=>({w:p.n,hits:hitsFor(p.w)}))
+      .filter(it=>it.hits.length>=2)
+      .sort((a,b)=>b.hits.length-a.hits.length||a.w.localeCompare(b.w));
+    const body=items.length?items.map(it=>{
+      const i=n++;
+      const tr=trendOf(it.hits,dates);
+      const marked=new Set(it.hits.map(h=>h.date));
+      const spark=dates.map(d=>`<i class="${marked.has(d)?'on':''}" style="height:${marked.has(d)?12:5}px"></i>`).join('');
+      return `<div class="arc" id="arc-${i}">
+        <div class="arc-head" onclick="document.getElementById('arc-${i}').classList.toggle('open')">
+          <i class="ti ti-chevron-right arc-chev"></i>
+          <span class="arc-name">${esc(it.w)}</span>
+          ${tr?`<span class="arc-trend" style="background:${tr.bg};color:${tr.fg}">${tr.t}</span>`:''}
+          <span class="arc-spark">${spark}</span>
+          <span class="arc-count">${it.hits.length} 次</span>
+        </div>
+        <div class="arc-body">
+          ${it.hits.map(h=>`<div class="arc-item">
+            <span class="arc-date">${esc(h.date.slice(5))}${h.pool?'<br><span style="color:#ccc">'+esc(h.pool)+'</span>':''}</span>
+            <span class="arc-frag">${h.frags.length?h.frags.map(esc).join(' … '):'<span style="color:#bbb">（提到过，但没抓到完整句子）</span>'}</span>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }).join(''):'<div class="arc-empty">还没有反复出现的记录</div>';
+    return `<div class="arc-grp${items.length?'':' empty'}">
+      <div class="arc-grp-head"><i class="ti ${g.icon}"></i>${g.g}<span class="arc-grp-n">${items.length?items.length+' 个技术点':'—'}</span></div>
+      ${body}
     </div>`;
   }).join('');
 }
